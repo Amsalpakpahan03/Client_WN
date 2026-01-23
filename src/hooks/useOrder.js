@@ -8,8 +8,14 @@ export const useOrder = (tableNumber) => {
   const createOrder = async (payload) => {
     const token = localStorage.getItem("order_token");
 
-    const res = await axios.post(
-      "http://localhost:5000/api/orders",
+    // const res = await axios.post(
+    //   "http://localhost:5000/api/orders",
+    //   payload,
+    //   { headers: { Authorization: `Bearer ${token}` } }
+    // );
+
+        const res = await axios.post(
+      "https://d4aa1b22-168c-44e1-a9a4-b990fed0bf50-00-2u5l4uo2l2hlm.sisko.replit.dev/api/orders",
       payload,
       { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -26,7 +32,7 @@ export const useOrder = (tableNumber) => {
     if (!orderId) return;
 
     axios
-      .get(`http://localhost:5000/api/orders/${orderId}`)
+      .get(`https://d4aa1b22-168c-44e1-a9a4-b990fed0bf50-00-2u5l4uo2l2hlm.sisko.replit.dev/api/orders/${orderId}`)
       .then((res) => {
         // Jika order masih aktif → tampilkan status
         if (res.data && res.data.status !== "paid") {

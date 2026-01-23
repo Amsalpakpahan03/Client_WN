@@ -1,9 +1,4 @@
-import React, {
-  useEffect,
-  useState,
-  useMemo,
-  useCallback,
-} from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 
@@ -19,7 +14,7 @@ function OrderMenu() {
   const location = useLocation();
   const query = useMemo(
     () => new URLSearchParams(location.search),
-    [location.search]
+    [location.search],
   );
 
   const tableNumber = query.get("table");
@@ -118,9 +113,8 @@ function OrderMenu() {
   /* ================= TOTAL PRICE ================= */
   const totalPrice = useMemo(() => {
     return menuItems.reduce(
-      (sum, item) =>
-        sum + (cart[item._id] || 0) * (item.price || 0),
-      0
+      (sum, item) => sum + (cart[item._id] || 0) * (item.price || 0),
+      0,
     );
   }, [cart, menuItems]);
 
@@ -241,7 +235,7 @@ function OrderMenu() {
                 />
               ))}
             </div>
-          )
+          ),
       )}
 
       {!!Object.keys(cart).length && (
@@ -257,19 +251,17 @@ function OrderMenu() {
 }
 
 /* ================= MEMOIZED MENU ITEM ================= */
-const MenuItem = React.memo(function MenuItem({
-  item,
-  qty,
-  onAdd,
-  onRemove,
-}) {
+const API_URL = process.env.REACT_APP_API_URL;
+const ASSET_URL = process.env.REACT_APP_ASSET_URL;
+
+const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
   return (
     <div style={styles.menuCard}>
       <img
         src={
           item.image_url?.startsWith("http")
             ? item.image_url
-            : "http://localhost:5000/uploads/no-image.png"
+            : `${ASSET_URL}/uploads/${item.image_url || "no-image.png"}`
         }
         alt={item.name}
         width="80"
@@ -281,33 +273,22 @@ const MenuItem = React.memo(function MenuItem({
 
       <div style={{ flex: 1 }}>
         <b>{item.name}</b>
-        <div style={styles.price}>
-          Rp {item.price.toLocaleString()}
-        </div>
+        <div style={styles.price}>Rp {item.price.toLocaleString()}</div>
       </div>
 
       <div style={styles.action}>
         {qty ? (
           <>
-            <button
-              style={styles.qtyBtn}
-              onClick={() => onRemove(item)}
-            >
+            <button style={styles.qtyBtn} onClick={() => onRemove(item)}>
               −
             </button>
             {qty}
-            <button
-              style={styles.qtyBtn}
-              onClick={() => onAdd(item)}
-            >
+            <button style={styles.qtyBtn} onClick={() => onAdd(item)}>
               +
             </button>
           </>
         ) : (
-          <button
-            style={styles.addBtn}
-            onClick={() => onAdd(item)}
-          >
+          <button style={styles.addBtn} onClick={() => onAdd(item)}>
             Tambah
           </button>
         )}

@@ -15,7 +15,14 @@ import {
   Clock,
 } from "lucide-react";
 
-const socket = io("http://localhost:5000");
+// const socket = io("http://localhost:5000");
+const socket = io(
+  "https://d4aa1b22-168c-44e1-a9a4-b990fed0bf50-00-2u5l4uo2l2hlm.sisko.replit.dev",
+  {
+    transports: ["websocket"],
+  }
+);
+
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState("orders");
@@ -31,7 +38,8 @@ const AdminPage = () => {
   });
   const [imagePreview, setImagePreview] = useState(null);
 
-  const API_BASE = "http://localhost:5000/api";
+  // const API_BASE = "http://localhost:5000/api";
+    const API_BASE = "https://d4aa1b22-168c-44e1-a9a4-b990fed0bf50-00-2u5l4uo2l2hlm.sisko.replit.dev/api";
 
   const fetchOrders = useCallback(async () => {
     setIsLoading(true);
