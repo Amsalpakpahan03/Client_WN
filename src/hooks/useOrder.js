@@ -14,10 +14,10 @@ export const useOrder = (tableNumber) => {
     //   { headers: { Authorization: `Bearer ${token}` } }
     // );
 
-        const res = await axios.post(
+    const res = await axios.post(
       "https://d4aa1b22-168c-44e1-a9a4-b990fed0bf50-00-2u5l4uo2l2hlm.sisko.replit.dev/api/orders",
       payload,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` } },
     );
 
     setActiveOrder(res.data);
@@ -32,7 +32,9 @@ export const useOrder = (tableNumber) => {
     if (!orderId) return;
 
     axios
-      .get(`https://d4aa1b22-168c-44e1-a9a4-b990fed0bf50-00-2u5l4uo2l2hlm.sisko.replit.dev/api/orders/${orderId}`)
+      .get(
+        `https://d4aa1b22-168c-44e1-a9a4-b990fed0bf50-00-2u5l4uo2l2hlm.sisko.replit.dev/api/orders/${orderId}`,
+      )
       .then((res) => {
         // Jika order masih aktif → tampilkan status
         if (res.data && res.data.status !== "paid") {
@@ -47,11 +49,31 @@ export const useOrder = (tableNumber) => {
   }, [tableNumber]);
 
   /* ================= SOCKET UPDATE ================= */
+  // const updateOrderFromSocket = useCallback((updatedOrder) => {
+  //   setActiveOrder((current) => {
+  //     if (!current) return current;
+  //     if (current._id !== updatedOrder._id) return current;
+
+  //     if (updatedOrder.status === "paid") {
+  //       localStorage.removeItem("activeOrderId");
+  //       return null;
+  //     }
+
+  //     return { ...current, ...updatedOrder };
+  //   });
+  // }, []);
   const updateOrderFromSocket = useCallback((updatedOrder) => {
     setActiveOrder((current) => {
-      if (!current) return current;
+      // jika belum ada order → socket boleh set
+      if (!current) {
+        localStorage.setItem("activeOrderId", updatedOrder._id);
+        return updatedOrder;
+      }
+
+      // jika order berbeda → abaikan
       if (current._id !== updatedOrder._id) return current;
 
+      // jika sudah dibayar → clear
       if (updatedOrder.status === "paid") {
         localStorage.removeItem("activeOrderId");
         return null;
