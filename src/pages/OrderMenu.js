@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { useLocation } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 
@@ -10,6 +16,10 @@ import { useOrder } from "../hooks/useOrder";
 const CATEGORIES = ["Paket", "Makanan", "Minuman", "Cemilan"];
 
 function OrderMenu() {
+  /* ================= REFS (PENTING) ================= */
+  const hasInitSocket = useRef(false);
+  const heartbeatRef = useRef(null);
+
   /* ================= URL PARAM ================= */
   const location = useLocation();
   const query = useMemo(
@@ -50,9 +60,11 @@ function OrderMenu() {
     }
   }, [query]);
 
-  /* ================= LOCKING ================= */
+  /* ================= SOCKET LOCK & HEARTBEAT ================= */
   useEffect(() => {
-    if (!tableNumber) return;
+    if (!tableNumber || hasInitSocket.current) return;
+
+    hasInitSocket.current = true;
 
     socket.emit("tryAccessTable", {
       tableId: tableNumber,
@@ -66,7 +78,7 @@ function OrderMenu() {
 
     socket.on("accessDenied", denyHandler);
 
-    const heartbeat = setInterval(() => {
+    heartbeatRef.current = setInterval(() => {
       socket.emit("heartbeat", {
         tableId: tableNumber,
         clientId,
@@ -74,20 +86,26 @@ function OrderMenu() {
     }, 5000);
 
     return () => {
-      clearInterval(heartbeat);
+      clearInterval(heartbeatRef.current);
       socket.off("accessDenied", denyHandler);
+      hasInitSocket.current = false;
     };
   }, [tableNumber, clientId]);
 
-  /* ================= SOCKET UPDATE ================= */
+  /* ================= REALTIME ORDER UPDATE ================= */
   useEffect(() => {
+    if (!tableNumber) return;
+
     const handler = (updatedOrder) => {
       if (updatedOrder.tableNumber !== tableNumber) return;
       updateOrderFromSocket(updatedOrder);
     };
 
     socket.on("orderStatusUpdated", handler);
-    return () => socket.off("orderStatusUpdated", handler);
+
+    return () => {
+      socket.off("orderStatusUpdated", handler);
+    };
   }, [tableNumber, updateOrderFromSocket]);
 
   /* ================= CART ACTION ================= */
@@ -142,7 +160,7 @@ function OrderMenu() {
     setCart({});
   };
 
-  /* ================= MENU GROUPING (1 PASS) ================= */
+  /* ================= MENU GROUPING ================= */
   const menuByCategory = useMemo(() => {
     const map = {};
     for (const item of menuItems) {
@@ -156,65 +174,27 @@ function OrderMenu() {
     }));
   }, [menuItems]);
 
-  /* ================= STATUS ================= */
-  const getStatusInfo = (status) => {
-    switch (status) {
-      case "pending":
-        return {
-          text: "Menunggu Konfirmasi",
-          color: "#c0392b",
-          bg: "#fdecea",
-        };
-      case "cooking":
-        return {
-          text: "Sedang Dimasak",
-          color: "#e67e22",
-          bg: "#fdf2e9",
-        };
-      case "served":
-        return {
-          text: "Pesanan Diantar",
-          color: "#27ae60",
-          bg: "#e9f7ef",
-        };
-      default:
-        return {};
-    }
-  };
-
-  /* ================= VIEW: ORDER STATUS ================= */
+  /* ================= STATUS VIEW ================= */
   if (activeOrder) {
-    const status = getStatusInfo(activeOrder.status);
-
     return (
       <div style={styles.container}>
         <h2>Warung Ndeso – Meja {tableNumber}</h2>
+        <h3>Status: {activeOrder.status}</h3>
 
-        <div
-          style={{
-            ...styles.statusBox,
-            borderColor: status.color,
-            background: status.bg,
-          }}
-        >
-          <h3>{status.text}</h3>
+        <ul>
+          {activeOrder.items.map((item, i) => (
+            <li key={i}>
+              {item.name} × {item.quantity}
+            </li>
+          ))}
+        </ul>
 
-          <ul>
-            {activeOrder.items.map((item, i) => (
-              <li key={i}>
-                {item.name} × {item.quantity} = Rp{" "}
-                {(item.price * item.quantity).toLocaleString()}
-              </li>
-            ))}
-          </ul>
-
-          <b>Total: Rp {activeOrder.totalPrice.toLocaleString()}</b>
-        </div>
+        <b>Total: Rp {activeOrder.totalPrice.toLocaleString()}</b>
       </div>
     );
   }
 
-  /* ================= VIEW: MENU ================= */
+  /* ================= MENU VIEW ================= */
   return (
     <div style={styles.container}>
       <h2>Warung Ndeso – Meja {tableNumber}</h2>
@@ -224,7 +204,6 @@ function OrderMenu() {
           cat.items.length > 0 && (
             <div key={cat.name}>
               <h3 style={styles.category}>{cat.name}</h3>
-
               {cat.items.map((item) => (
                 <MenuItem
                   key={item._id}
@@ -250,52 +229,39 @@ function OrderMenu() {
   );
 }
 
-/* ================= MEMOIZED MENU ITEM ================= */
-const API_URL = process.env.REACT_APP_API_URL;
+/* ================= MENU ITEM ================= */
 const ASSET_URL = process.env.REACT_APP_ASSET_URL;
 
-const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
-  return (
-    <div style={styles.menuCard}>
-      <img
-        src={
-          item.image_url?.startsWith("http")
-            ? item.image_url
-            : `${ASSET_URL}/uploads/${item.image_url || "no-image.png"}`
-        }
-        alt={item.name}
-        width="80"
-        height="80"
-        loading="lazy"
-        decoding="async"
-        style={styles.menuImage}
-      />
+const MenuItem = React.memo(({ item, qty, onAdd, onRemove }) => (
+  <div style={styles.menuCard}>
+    <img
+      src={
+        item.image_url?.startsWith("http")
+          ? item.image_url
+          : `${ASSET_URL}/uploads/${item.image_url || "no-image.png"}`
+      }
+      alt={item.name}
+      style={styles.menuImage}
+    />
 
-      <div style={{ flex: 1 }}>
-        <b>{item.name}</b>
-        <div style={styles.price}>Rp {item.price.toLocaleString()}</div>
-      </div>
-
-      <div style={styles.action}>
-        {qty ? (
-          <>
-            <button style={styles.qtyBtn} onClick={() => onRemove(item)}>
-              −
-            </button>
-            {qty}
-            <button style={styles.qtyBtn} onClick={() => onAdd(item)}>
-              +
-            </button>
-          </>
-        ) : (
-          <button style={styles.addBtn} onClick={() => onAdd(item)}>
-            Tambah
-          </button>
-        )}
-      </div>
+    <div style={{ flex: 1 }}>
+      <b>{item.name}</b>
+      <div style={styles.price}>Rp {item.price.toLocaleString()}</div>
     </div>
-  );
-});
+
+    <div style={styles.action}>
+      {qty ? (
+        <>
+          <button onClick={() => onRemove(item)}>−</button>
+          {qty}
+          <button onClick={() => onAdd(item)}>+</button>
+        </>
+      ) : (
+        <button onClick={() => onAdd(item)}>Tambah</button>
+      )}
+    </div>
+  </div>
+));
 
 /* ================= STYLES ================= */
 const styles = {
@@ -305,8 +271,6 @@ const styles = {
   menuImage: { width: 80, height: 80, borderRadius: 8 },
   price: { color: "#c0392b", fontWeight: "bold" },
   action: { display: "flex", gap: 6, alignItems: "center" },
-  qtyBtn: { width: 28, height: 28 },
-  addBtn: { padding: "6px 12px" },
   cartBar: {
     position: "fixed",
     bottom: 0,
@@ -318,7 +282,6 @@ const styles = {
     justifyContent: "space-between",
   },
   checkoutBtn: { padding: "10px 24px" },
-  statusBox: { padding: 20, border: "2px solid", borderRadius: 10 },
 };
 
 export default OrderMenu;

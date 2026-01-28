@@ -62,16 +62,29 @@ const AdminPage = () => {
     }
   }, [API_BASE]);
 
+  // useEffect(() => {
+  //   fetchOrders();
+  //   fetchProducts();
+  //   socket.on("newOrder", fetchOrders);
+  //   socket.on("orderStatusChanged", fetchOrders);
+  //   return () => {
+  //     socket.off("newOrder");
+  //     socket.off("orderStatusChanged");
+  //   };
+  // }, [fetchOrders, fetchProducts]);
   useEffect(() => {
-    fetchOrders();
-    fetchProducts();
-    socket.on("newOrder", fetchOrders);
-    socket.on("orderStatusChanged", fetchOrders);
-    return () => {
-      socket.off("newOrder");
-      socket.off("orderStatusChanged");
-    };
-  }, [fetchOrders, fetchProducts]);
+  fetchOrders();
+  fetchProducts();
+
+  socket.on("newOrder", fetchOrders);
+  socket.on("orderStatusUpdated", fetchOrders);
+
+  return () => {
+    socket.off("newOrder", fetchOrders);
+    socket.off("orderStatusUpdated", fetchOrders);
+  };
+}, [fetchOrders, fetchProducts]);
+
 
   const handleUpdateStatus = async (id, newStatus) => {
     // 1. UPDATE UI LANGSUNG (optimistic)
@@ -83,7 +96,7 @@ const AdminPage = () => {
       // 2. KIRIM KE BACKEND
       await axios.put(`${API_BASE}/orders/${id}/status`, { status: newStatus });
       // 3. Emit socket supaya realtime
-      socket.emit("orderStatusChanged", { _id: id, status: newStatus });
+      // socket.emit("orderStatusChanged", { _id: id, status: newStatus });
     } catch (err) {
       // 4. ROLLBACK jika gagal
       alert("Gagal update status");

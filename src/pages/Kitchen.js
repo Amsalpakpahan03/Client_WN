@@ -2,16 +2,34 @@ import React, { useEffect, useState } from "react";
 import { OrderAPI } from "../api/order.api";
 import socket from "../api/socket";
 
-
-
 function Kitchen() {
   const [orders, setOrders] = useState([]);
 
+  /* ================= FETCH AWAL ================= */
+  const fetchOrders = async () => {
+    try {
+      const { data } = await OrderAPI.getAll();
+      setOrders(data);
+    } catch (err) {
+      console.error("Gagal fetch orders:", err);
+    }
+  };
+
+  /* ================= SOCKET & INIT ================= */
   useEffect(() => {
     fetchOrders();
 
-    socket.on("newOrder", fetchOrders);
-    socket.on("orderStatusUpdated", fetchOrders);
+    socket.on("newOrder", (order) => {
+      setOrders((prev) => [...prev, order]);
+    });
+
+    socket.on("orderStatusUpdated", (updatedOrder) => {
+      setOrders((prev) =>
+        prev.map((o) =>
+          o._id === updatedOrder._id ? updatedOrder : o
+        )
+      );
+    });
 
     return () => {
       socket.off("newOrder");
@@ -19,43 +37,34 @@ function Kitchen() {
     };
   }, []);
 
-  // const fetchOrders = async () => {
-  //   const res = await axios.get("http://localhost:5000/api/orders");
-  //   setOrders(res.data);
-  // };
-  const fetchOrders = async () => {
-  const { data } = await OrderAPI.getAll();
-  setOrders(data);
-};
-
-
-  // const updateStatus = async (id, currentStatus) => {
-  //   const flow = {
-  //     pending: "cooking",
-  //     cooking: "served",
-  //     served: "paid",
-  //   };
-
-  //   if (flow[currentStatus]) {
-  //     await axios.put(
-  //       `http://localhost:5000/api/orders/${id}/status`,
-  //       { status: flow[currentStatus] }
-  //     );
-  //   }
-  // };
+  /* ================= UPDATE STATUS ================= */
   const updateStatus = async (id, currentStatus) => {
-  const flow = {
-    pending: "cooking",
-    cooking: "served",
-    served: "paid",
+    const flow = {
+      pending: "cooking",
+      cooking: "served",
+      served: "paid",
+    };
+
+    const nextStatus = flow[currentStatus];
+    if (!nextStatus) return;
+
+    try {
+      const { data: updatedOrder } =
+        await OrderAPI.updateStatus(id, nextStatus);
+
+      // update lokal (instant UI)
+      setOrders((prev) =>
+        prev.map((o) => (o._id === id ? updatedOrder : o))
+      );
+
+      // optional: broadcast (kalau backend belum emit)
+      socket.emit("orderStatusUpdated", updatedOrder);
+    } catch (err) {
+      console.error("Gagal update status:", err);
+    }
   };
 
-  if (flow[currentStatus]) {
-    await OrderAPI.updateStatus(id, flow[currentStatus]);
-  }
-};
-
-
+  /* ================= STATUS CONFIG ================= */
   const statusConfig = {
     pending: { label: "PENDING", color: "#e74c3c" },
     cooking: { label: "COOKING", color: "#f39c12" },
@@ -63,11 +72,14 @@ function Kitchen() {
     paid: { label: "PAID", color: "#7f8c8d" },
   };
 
+  /* ================= RENDER ================= */
   return (
     <div style={styles.page}>
       <header style={styles.header}>
         <h1 style={styles.title}>🍳 Dapur – Antrian Pesanan</h1>
-        <span style={styles.subtitle}>First Come First Served (FCFS)</span>
+        <span style={styles.subtitle}>
+          First Come First Served (FCFS)
+        </span>
       </header>
 
       {orders.length === 0 ? (
@@ -76,11 +88,14 @@ function Kitchen() {
         <div style={styles.grid}>
           {orders.map((order, index) => {
             const status = statusConfig[order.status];
+
             return (
               <div key={order._id} style={styles.card}>
                 <div style={styles.cardHeader}>
                   <div>
-                    <h2 style={styles.table}>Meja {order.tableNumber}</h2>
+                    <h2 style={styles.table}>
+                      Meja {order.tableNumber}
+                    </h2>
                     <span style={styles.queue}>
                       Antrian #{index + 1}
                     </span>
@@ -104,7 +119,8 @@ function Kitchen() {
                 <ul style={styles.items}>
                   {order.items.map((item, i) => (
                     <li key={i}>
-                      <strong>{item.quantity}x</strong> {item.name}
+                      <strong>{item.quantity}x</strong>{" "}
+                      {item.name}
                     </li>
                   ))}
                 </ul>
