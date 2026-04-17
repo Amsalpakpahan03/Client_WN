@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
-import axios from "axios";
-import { io } from "socket.io-client";
+import api from "../api/axios";
+import socket from "../api/socket";
 import {
   Loader,
   Package,
@@ -13,16 +13,9 @@ import {
   DollarSign,
   ClipboardList,
   Clock,
+  Coffee,
+  Utensils,
 } from "lucide-react";
-
-// const socket = io("http://localhost:5000");
-const socket = io(
-  "https://d4aa1b22-168c-44e1-a9a4-b990fed0bf50-00-2u5l4uo2l2hlm.sisko.replit.dev",
-  {
-    transports: ["websocket"],
-  }
-);
-
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState("orders");
@@ -38,68 +31,101 @@ const AdminPage = () => {
   });
   const [imagePreview, setImagePreview] = useState(null);
 
-  // const API_BASE = "http://localhost:5000/api";
-    const API_BASE = "https://d4aa1b22-168c-44e1-a9a4-b990fed0bf50-00-2u5l4uo2l2hlm.sisko.replit.dev/api";
-
+  // Urutkan orders dari yang terbaru ke yang lama
   const fetchOrders = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/orders`);
-      setOrders(res.data.reverse());
+      const res = await api.get("/orders");
+      let data =
+        res.data.data && Array.isArray(res.data.data)
+          ? res.data.data
+          : res.data;
+      data = data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      setOrders(data);
+      console.log("[ADMIN] Orders fetched:", data.length, "orders");
     } catch (err) {
-      console.error("Gagal mengambil data pesanan", err);
+      console.error("[ADMIN] Gagal mengambil data pesanan", err);
     } finally {
       setIsLoading(false);
     }
-  }, [API_BASE]);
+  }, []);
 
   const fetchProducts = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_BASE}/menu`);
-      setProducts(res.data);
+      const res = await api.get("/menu");
+      setProducts(
+        res.data.data && Array.isArray(res.data.data)
+          ? res.data.data
+          : res.data,
+      );
     } catch (err) {
-      console.error(err);
+      console.error("[ADMIN] Gagal mengambil data menu:", err);
     }
-  }, [API_BASE]);
+  }, []);
 
-  // useEffect(() => {
-  //   fetchOrders();
-  //   fetchProducts();
-  //   socket.on("newOrder", fetchOrders);
-  //   socket.on("orderStatusChanged", fetchOrders);
-  //   return () => {
-  //     socket.off("newOrder");
-  //     socket.off("orderStatusChanged");
-  //   };
-  // }, [fetchOrders, fetchProducts]);
   useEffect(() => {
-  fetchOrders();
-  fetchProducts();
+    fetchOrders();
+    fetchProducts();
 
-  socket.on("newOrder", fetchOrders);
-  socket.on("orderStatusUpdated", fetchOrders);
+    socket.on("newOrder", fetchOrders);
+    socket.on("orderStatusUpdated", fetchOrders);
 
-  return () => {
-    socket.off("newOrder", fetchOrders);
-    socket.off("orderStatusUpdated", fetchOrders);
-  };
-}, [fetchOrders, fetchProducts]);
+    return () => {
+      socket.off("newOrder", fetchOrders);
+      socket.off("orderStatusUpdated", fetchOrders);
+    };
+  }, [fetchOrders, fetchProducts]);
 
-
+  // Update status global
   const handleUpdateStatus = async (id, newStatus) => {
-    // 1. UPDATE UI LANGSUNG (optimistic)
+    console.log("[ADMIN] Updating global status:", id, "→", newStatus);
+
     setOrders((prev) =>
-      prev.map((o) => (o._id === id ? { ...o, status: newStatus } : o))
+      prev.map((o) => (o._id === id ? { ...o, status: newStatus } : o)),
     );
 
     try {
-      // 2. KIRIM KE BACKEND
-      await axios.put(`${API_BASE}/orders/${id}/status`, { status: newStatus });
-      // 3. Emit socket supaya realtime
-      // socket.emit("orderStatusChanged", { _id: id, status: newStatus });
+      await api.put(`/orders/${id}/status`, { status: newStatus });
+      console.log("[ADMIN] Status global berhasil diupdate");
     } catch (err) {
-      // 4. ROLLBACK jika gagal
-      alert("Gagal update status");
+      console.error("[ADMIN] Gagal update status", err);
+      alert(
+        `Gagal update status: ${err.response?.data?.message || err.message}`,
+      );
+      fetchOrders();
+    }
+  };
+
+  // Update status minuman (ANTAR MINUMAN)
+  const handleAntarMinuman = async (orderId) => {
+    console.log("[ADMIN] Mengantar minuman untuk order:", orderId);
+
+    setOrders((prev) =>
+      prev.map((order) => {
+        if (order._id === orderId) {
+          const updatedItems = order.items.map((item) =>
+            item.category === "Minuman" ? { ...item, status: "served" } : item,
+          );
+          return { ...order, items: updatedItems };
+        }
+        return order;
+      }),
+    );
+
+    try {
+      const response = await api.put(
+        `/orders/${orderId}/update-category-status`,
+        {
+          category: "Minuman",
+          status: "served",
+        },
+      );
+      console.log("[ADMIN] Response antar minuman:", response.data);
+    } catch (err) {
+      console.error("[ADMIN] Gagal antar minuman", err);
+      alert(
+        `Gagal mengantar minuman: ${err.response?.data?.message || err.message}`,
+      );
       fetchOrders();
     }
   };
@@ -121,7 +147,7 @@ const AdminPage = () => {
     if (newProduct.imageFile) formData.append("image", newProduct.imageFile);
 
     try {
-      await axios.post(`${API_BASE}/menu`, formData, {
+      await api.post("/menu", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       alert("Produk berhasil ditambahkan!");
@@ -135,17 +161,20 @@ const AdminPage = () => {
       setImagePreview(null);
       fetchProducts();
     } catch (err) {
-      alert(err.message);
+      alert(
+        `Gagal menambah produk: ${err.response?.data?.message || err.message}`,
+      );
     }
   };
 
   const handleDeleteProduct = async (id) => {
     if (!window.confirm("Yakin ingin menghapus produk ini?")) return;
     try {
-      await axios.delete(`${API_BASE}/menu/${id}`);
+      await api.delete(`/menu/${id}`);
       fetchProducts();
+      alert("Produk berhasil dihapus");
     } catch (err) {
-      alert("Gagal menghapus");
+      alert(`Gagal menghapus: ${err.response?.data?.message || err.message}`);
     }
   };
 
@@ -182,15 +211,11 @@ const AdminPage = () => {
 
   return (
     <div style={styles.page}>
-      {/* HEADER */}
       <div style={styles.header}>
         <div style={styles.headerContent}>
           <div style={styles.logoArea}>
-            <div style={styles.logoIcon}>
-              <ChefHat color="white" size={24} />
-            </div>
             <div>
-              <h1 style={styles.logoText}>Admin Dash</h1>
+              <h1 style={styles.logoText}>Admin Dashboard</h1>
               <div style={styles.liveIndicator}>
                 <span style={styles.pulseDot}></span>
                 <span style={styles.liveText}>Live System</span>
@@ -215,7 +240,6 @@ const AdminPage = () => {
       </div>
 
       <div style={styles.container}>
-        {/* Stats */}
         <div style={styles.statsGrid}>
           <div style={styles.statCard}>
             <div
@@ -269,7 +293,6 @@ const AdminPage = () => {
           </div>
         </div>
 
-        {/* CONTENT */}
         {activeTab === "orders" ? (
           <div style={styles.ordersGrid}>
             {isLoading && orders.length === 0 ? (
@@ -297,7 +320,6 @@ const AdminPage = () => {
                             })}
                           </span>
                         </div>
-
                         <span style={styles.tableBadge}>
                           Meja {o.tableNumber}
                         </span>
@@ -312,14 +334,61 @@ const AdminPage = () => {
                             : o.status.toUpperCase()}
                         </span>
                       </div>
+
+                      {/* FIXED: Daftar item - HANYA MINUMAN yang punya status, MAKANAN tanpa status */}
                       <div style={styles.itemList}>
                         {o.items.map((item, idx) => (
                           <div key={idx} style={styles.itemRow}>
-                            <b style={{ color: "#5E4A3A" }}>{item.quantity}x</b>{" "}
-                            {item.name}
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                width: "100%",
+                              }}
+                            >
+                              <div>
+                                <b style={{ color: "#c0392b" }}>
+                                  {item.quantity}x
+                                </b>{" "}
+                                {item.name}
+                                {/* FIXED: Hanya tampilkan status untuk MINUMAN */}
+                                {item.category === "Minuman" && (
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      marginLeft: 8,
+                                      color:
+                                        item.status === "served"
+                                          ? "#10B981"
+                                          : "#F59E0B",
+                                      fontWeight: "bold",
+                                    }}
+                                  >
+                                    (
+                                    {item.status === "served"
+                                      ? "✓ Diantar"
+                                      : "⏳ Siap"}
+                                    )
+                                  </span>
+                                )}
+                                {/* FIXED: MAKANAN TIDAK ADA STATUSNYA */}
+                              </div>
+                              {/* Tombol Antar Minuman hanya untuk minuman yang belum diantar */}
+                              {item.category === "Minuman" &&
+                                item.status !== "served" && (
+                                  <button
+                                    onClick={() => handleAntarMinuman(o._id)}
+                                    style={styles.antarMinumanBtn}
+                                  >
+                                    <Coffee size={12} /> Antar Minuman
+                                  </button>
+                                )}
+                            </div>
                           </div>
                         ))}
                       </div>
+
                       <div style={styles.orderFooter}>
                         <span style={styles.orderId}>
                           #{o._id.slice(-6).toUpperCase()}
@@ -329,20 +398,21 @@ const AdminPage = () => {
                         </span>
                       </div>
                     </div>
+
                     <div style={styles.orderActions}>
                       <button
                         disabled={o.status !== "pending"}
                         style={styles.actionBtnDisabled(o.status === "pending")}
                         onClick={() => handleUpdateStatus(o._id, "cooking")}
                       >
-                        Masak
+                        <Utensils size={12} /> Masak
                       </button>
                       <button
                         disabled={o.status !== "cooking"}
                         style={styles.actionBtnDisabled(o.status === "cooking")}
                         onClick={() => handleUpdateStatus(o._id, "served")}
                       >
-                        Antar
+                        Antar Semua
                       </button>
                       <button
                         disabled={o.status !== "served"}
@@ -359,7 +429,6 @@ const AdminPage = () => {
           </div>
         ) : (
           <div style={styles.productFlex}>
-            {/* FORM TAMBAH MENU */}
             <div style={styles.productFormSide}>
               <div style={styles.formCard}>
                 <h3 style={styles.formTitle}>
@@ -473,7 +542,6 @@ const AdminPage = () => {
               </div>
             </div>
 
-            {/* LIST PRODUK */}
             <div style={styles.productListSide}>
               <div style={styles.productGrid}>
                 {products.map((p) => (
@@ -534,8 +602,8 @@ const styles = {
     gap: 15,
   },
   logoArea: { display: "flex", alignItems: "center", gap: 12 },
-  logoIcon: { backgroundColor: "#5E4A3A", padding: 8, borderRadius: 8 },
-  logoText: { margin: 0, fontSize: 24, fontWeight: "bold", color: "#5E4A3A" },
+  logoIcon: { backgroundColor: "#c0392b", padding: 8, borderRadius: 8 },
+  logoText: { margin: 0, fontSize: 24, fontWeight: "bold", color: "#c0392b" },
   liveIndicator: { display: "flex", alignItems: "center", gap: 5 },
   pulseDot: {
     width: 8,
@@ -563,7 +631,7 @@ const styles = {
     fontWeight: "bold",
     fontSize: 14,
     backgroundColor: active ? "white" : "transparent",
-    color: active ? "#5E4A3A" : "#6B7280",
+    color: active ? "#c0392b" : "#6B7280",
     boxShadow: active ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
     transition: "0.3s",
   }),
@@ -593,7 +661,7 @@ const styles = {
   statValue: { margin: 0, fontSize: 24, fontWeight: "bold", color: "#1F2937" },
   ordersGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))",
     gap: 20,
   },
   orderCard: {
@@ -608,9 +676,10 @@ const styles = {
     alignItems: "center",
     gap: 10,
     marginBottom: 15,
+    flexWrap: "wrap",
   },
   tableBadge: {
-    backgroundColor: "#5E4A3A",
+    backgroundColor: "#c0392b",
     color: "white",
     padding: "4px 12px",
     borderRadius: 8,
@@ -627,7 +696,7 @@ const styles = {
     paddingBottom: 15,
     borderBottom: "1px solid #F3F4F6",
   },
-  itemRow: { fontSize: 14, color: "#4B5563", marginBottom: 5 },
+  itemRow: { fontSize: 14, color: "#4B5563", marginBottom: 8 },
   orderFooter: {
     display: "flex",
     justifyContent: "space-between",
@@ -641,17 +710,19 @@ const styles = {
     gap: 8,
     minWidth: 100,
   },
-  actionBtn: (bg, color) => ({
-    backgroundColor: bg,
-    color: color,
+  antarMinumanBtn: {
+    backgroundColor: "#3B82F6",
+    color: "white",
     border: "none",
-    padding: 8,
-    borderRadius: 8,
+    padding: "6px 12px",
+    borderRadius: 6,
+    fontSize: 11,
     fontWeight: "bold",
-    fontSize: 10,
     cursor: "pointer",
-    textTransform: "uppercase",
-  }),
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+  },
   productFlex: { display: "flex", gap: 30, flexWrap: "wrap" },
   productFormSide: { flex: 1, minWidth: 300 },
   formCard: {
@@ -664,7 +735,7 @@ const styles = {
   },
   formTitle: {
     margin: "0 0 20px 0",
-    color: "#5E4A3A",
+    color: "#c0392b",
     display: "flex",
     alignItems: "center",
     gap: 8,
@@ -695,7 +766,7 @@ const styles = {
     cursor: "pointer",
   },
   submitBtn: {
-    backgroundColor: "#5E4A3A",
+    backgroundColor: "#c0392b",
     color: "white",
     padding: 12,
     borderRadius: 8,
@@ -717,7 +788,7 @@ const styles = {
   },
   productImageWrapper: { height: 150, backgroundColor: "#F3F4F6" },
   productImage: { width: "100%", height: "100%", objectFit: "cover" },
-  productPrice: { color: "#EA580C", fontWeight: "bold", margin: "5px 0" },
+  productPrice: { color: "#c0392b", fontWeight: "bold", margin: "5px 0" },
   deleteBtn: {
     width: "100%",
     border: "1px solid #FEE2E2",
@@ -737,6 +808,10 @@ const styles = {
     fontSize: 10,
     cursor: active ? "pointer" : "not-allowed",
     opacity: active ? 1 : 0.6,
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    justifyContent: "center",
   }),
 };
 
