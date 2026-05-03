@@ -1,14 +1,14 @@
 // api/axios.js
 import axios from "axios";
 
-// Konfigurasi API Base URL
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
+// ✅ PERBAIKI: HAPUS /api dari baseURL
+const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 console.log("%c[AXIOS] Initializing...", "color: #0099ff; font-weight: bold");
-console.log("%c[AXIOS] URL:", "color: #0099ff", API_BASE_URL);
+console.log("%c[AXIOS] Base URL:", "color: #0099ff", API_BASE_URL);
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: API_BASE_URL,  // ← SEKARANG: https://...pike.replit.dev (tanpa /api)
   timeout: 10000,
   headers: {
     "Content-Type": "application/json",
@@ -21,10 +21,9 @@ api.interceptors.request.use(
     // Ambil token dari localStorage
     let token = localStorage.getItem("order_token");
     
-    // Jika tidak ada token untuk POST /orders, coba generate
-    if (!token && config.url === "/orders" && config.method === "post") {
+    // Jika tidak ada token untuk POST /api/orders, coba generate
+    if (!token && config.url === "/api/orders" && config.method === "post") {
       console.log("%c[AXIOS] No token found for order creation", "color: #ff6600");
-      // Token akan digenerate di useOrder, biarkan saja dulu
     }
     
     if (token) {
@@ -34,7 +33,7 @@ api.interceptors.request.use(
       console.log("%c[AXIOS] No token available", "color: #ff6600");
     }
     
-    console.log("%c[AXIOS] Request", "color: #0099ff", `${config.method.toUpperCase()} ${config.url}`);
+    console.log("%c[AXIOS] Request", "color: #0099ff", `${config.method.toUpperCase()} ${config.baseURL}${config.url}`);
     return config;
   },
   (error) => {
