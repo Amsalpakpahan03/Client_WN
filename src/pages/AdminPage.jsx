@@ -291,7 +291,7 @@ const AdminPage = () => {
       </div>
 
       <div style={styles.container}>
-        <div style={styles.statsGrid}>
+        {/* <div style={styles.statsGrid}>
           <div style={styles.statCard}>
             <div
               style={{
@@ -342,7 +342,7 @@ const AdminPage = () => {
               <p style={styles.statValue}>{products.length}</p>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {activeTab === "orders" ? (
           <div style={styles.ordersGrid}>

@@ -1,13 +1,15 @@
 // hooks/useOrder.js
 import { useState, useEffect, useCallback } from 'react';
 import { OrderAPI } from '../api/order.api';
-import socket from '../api/socket';
+// Hapus import socket karena tidak digunakan
+// import socket from '../api/socket';
 import axios from 'axios';
 
 export const useOrder = (tableNumber) => {
   const [activeOrder, setActiveOrder] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [socket, setSocket] = useState(null); // Tambahkan state untuk socket jika diperlukan
 
   // Helper function untuk mendapatkan/generate token
   const getOrCreateToken = useCallback(async () => {
@@ -115,7 +117,7 @@ export const useOrder = (tableNumber) => {
     };
 
     restoreOrder();
-  }, [tableNumber]);
+  }, [tableNumber]); // Tidak ada dependency yang hilang
 
   /* ================= SOCKET UPDATE ================= */
   const updateOrderFromSocket = useCallback((updatedOrder) => {
@@ -145,7 +147,34 @@ export const useOrder = (tableNumber) => {
       console.log("[ORDER] Merging socket update");
       return { ...current, ...updatedOrder };
     });
-  }, []);
+  }, []); // Tidak ada dependency
+
+  // Optional: Inisialisasi socket connection jika diperlukan
+  useEffect(() => {
+    const initSocket = async () => {
+      try {
+        const token = await getOrCreateToken();
+        if (token && !socket) {
+          // Inisialisasi socket connection di sini
+          console.log("[ORDER] Initializing socket connection");
+          // const newSocket = connectSocket(token);
+          // setSocket(newSocket);
+        }
+      } catch (err) {
+        console.error("[ORDER] Socket initialization failed:", err);
+      }
+    };
+
+    initSocket();
+
+    // Cleanup
+    return () => {
+      if (socket) {
+        console.log("[ORDER] Closing socket connection");
+        // socket.disconnect();
+      }
+    };
+  }, [getOrCreateToken, socket]);
 
   return {
     activeOrder,
