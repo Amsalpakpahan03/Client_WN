@@ -1,15 +1,12 @@
 // hooks/useOrder.js
 import { useState, useEffect, useCallback } from 'react';
 import { OrderAPI } from '../api/order.api';
-// Hapus import socket karena tidak digunakan
-// import socket from '../api/socket';
 import axios from 'axios';
 
 export const useOrder = (tableNumber) => {
   const [activeOrder, setActiveOrder] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  // const [socket, setSocket] = useState(null); // Tambahkan state untuk socket jika diperlukan
 
   // Helper function untuk mendapatkan/generate token
   const getOrCreateToken = useCallback(async () => {
@@ -18,7 +15,6 @@ export const useOrder = (tableNumber) => {
     if (!token && tableNumber) {
       console.log("[ORDER] No token found, generating for table:", tableNumber);
       try {
-        // PERBAIKAN: Gunakan baseURL yang benar (tanpa /api di akhir)
         const baseURL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5000";
         console.log("[ORDER] Fetching token from:", `${baseURL}/test-token/${tableNumber}`);
         
@@ -43,13 +39,11 @@ export const useOrder = (tableNumber) => {
     try {
       console.log("[ORDER] Starting order creation for table:", tableNumber);
       
-      // Pastikan token ada sebelum membuat order
       const token = await getOrCreateToken();
       console.log("[ORDER] Token status:", token ? "Available" : "Not available");
       
-      // Pastikan payload memiliki struktur yang benar
       const finalPayload = {
-        tableNumber: String(tableNumber), // Pastikan string
+        tableNumber: String(tableNumber),
         items: (payload.items || []).map(item => ({
           name: item.name,
           quantity: Number(item.quantity),
@@ -102,7 +96,6 @@ export const useOrder = (tableNumber) => {
         const res = await OrderAPI.getById(orderId);
         const resData = res.data.data || res.data;
         
-        // Jika order masih aktif → tampilkan status
         if (resData && resData.status !== "paid") {
           setActiveOrder(resData);
           console.log("[ORDER] ✅ Restored order:", resData._id, "Status:", resData.status);
@@ -117,27 +110,24 @@ export const useOrder = (tableNumber) => {
     };
 
     restoreOrder();
-  }, [tableNumber]); // Tidak ada dependency yang hilang
+  }, [tableNumber]);
 
   /* ================= SOCKET UPDATE ================= */
   const updateOrderFromSocket = useCallback((updatedOrder) => {
     console.log("[ORDER] Socket Update received:", updatedOrder);
     
     setActiveOrder((current) => {
-      // jika belum ada order → socket boleh set
       if (!current) {
         localStorage.setItem("activeOrderId", updatedOrder._id);
         console.log("[ORDER] Socket set new order:", updatedOrder._id);
         return updatedOrder;
       }
 
-      // jika order berbeda → abaikan
       if (current._id !== updatedOrder._id) {
         console.log("[ORDER] Ignoring different order. Current:", current._id, "Received:", updatedOrder._id);
         return current;
       }
 
-      // jika sudah dibayar → clear
       if (updatedOrder.status === "paid") {
         localStorage.removeItem("activeOrderId");
         console.log("[ORDER] Order paid, clearing local storage");
@@ -147,34 +137,7 @@ export const useOrder = (tableNumber) => {
       console.log("[ORDER] Merging socket update");
       return { ...current, ...updatedOrder };
     });
-  }, []); // Tidak ada dependency
-
-  // Optional: Inisialisasi socket connection jika diperlukan
-  useEffect(() => {
-    const initSocket = async () => {
-      try {
-        const token = await getOrCreateToken();
-        if (token && !socket) {
-          // Inisialisasi socket connection di sini
-          console.log("[ORDER] Initializing socket connection");
-          // const newSocket = connectSocket(token);
-          // setSocket(newSocket);
-        }
-      } catch (err) {
-        console.error("[ORDER] Socket initialization failed:", err);
-      }
-    };
-
-    initSocket();
-
-    // Cleanup
-    return () => {
-      if (socket) {
-        console.log("[ORDER] Closing socket connection");
-        // socket.disconnect();
-      }
-    };
-  }, [getOrCreateToken, socket]);
+  }, []);
 
   return {
     activeOrder,
