@@ -1,4 +1,3 @@
-// pages/OrderMenu.jsx - Token Expired langsung ke halaman selesai
 import React, {
   useEffect,
   useState,
@@ -15,6 +14,13 @@ import Footer from "../components/Footer";
 
 /* ================= CONSTANT ================= */
 const CATEGORIES = ["Paket", "Makanan", "Minuman", "Cemilan"];
+const COLORS = {
+  orange: "#e65527",
+  yellow: "#f3ca58",
+  white: "#ffffff",
+  textDark: "#2c3e50",
+  textLight: "#7f8c8d"
+};
 
 function OrderMenu() {
   const navigate = useNavigate();
@@ -41,7 +47,6 @@ function OrderMenu() {
     return id;
   }, []);
 
-  /* ================= CEK TOKEN EXPIRED ================= */
   const isTokenExpired = (token) => {
     if (!token) return true;
     try {
@@ -53,22 +58,17 @@ function OrderMenu() {
     }
   };
 
-  /* ================= HANDLE TOKEN EXPIRED - LANGSUNG KE PESANAN SELESAI ================= */
   const handleSessionExpired = useCallback(() => {
     setShowSessionExpired(true);
-    // Redirect ke halaman utama setelah 3 detik
     setTimeout(() => {
       navigate("/");
     }, 3000);
   }, [navigate]);
 
-  /* ================= TOKEN HANDLING ================= */
   useEffect(() => {
     const tokenFromUrl = query.get("token");
-    
     if (tokenFromUrl) {
       if (isTokenExpired(tokenFromUrl)) {
-        console.log("[ORDER] Token expired, redirecting to home");
         handleSessionExpired();
         return;
       }
@@ -89,12 +89,10 @@ function OrderMenu() {
     }
   }, [query, handleSessionExpired]);
 
-  /* ================= TABLE LOCK ================= */
   useEffect(() => {
     if (!tableNumber) return;
-
     socket.emit("tryAccessTable", { tableId: tableNumber, clientId });
-
+    
     const denyHandler = () => {
       setIsLocked(true);
       setShowLockAlert(true);
@@ -123,10 +121,8 @@ function OrderMenu() {
     };
   }, [tableNumber, clientId]);
 
-  /* ================= REALTIME ORDER UPDATE ================= */
   useEffect(() => {
     if (!tableNumber) return;
-
     socket.emit("joinTable", tableNumber);
 
     const handler = (updatedOrder) => {
@@ -142,7 +138,6 @@ function OrderMenu() {
     };
   }, [tableNumber, updateOrderFromSocket]);
 
-  /* ================= CART ACTION ================= */
   const addToCart = useCallback((item) => {
     setCart((prev) => ({ ...prev, [item._id]: (prev[item._id] || 0) + 1 }));
   }, []);
@@ -163,15 +158,12 @@ function OrderMenu() {
     return menuItems.reduce((sum, item) => sum + (cart[item._id] || 0) * (item.price || 0), 0);
   }, [cart, menuItems]);
 
-  /* ================= CREATE ORDER ================= */
   const handleOrder = async () => {
     const token = localStorage.getItem("order_token");
-    
     if (!token || isTokenExpired(token)) {
       handleSessionExpired();
       return;
     }
-    
     if (Object.keys(cart).length === 0) {
       alert("Silakan pilih menu terlebih dahulu");
       return;
@@ -188,28 +180,17 @@ function OrderMenu() {
       }));
 
     setIsSubmitting(true);
-    
     try {
-      await createOrder({ 
-        tableNumber, 
-        items, 
-        totalPrice, 
-        token: token
-      });
+      await createOrder({ tableNumber, items, totalPrice, token });
       setCart({});
     } catch (err) {
-      console.error("[ORDER] Gagal membuat pesanan:", err);
-      if (err.response?.status === 401) {
-        handleSessionExpired();
-      } else {
-        alert(err.response?.data?.message || "Gagal membuat pesanan. Silakan coba lagi.");
-      }
+      if (err.response?.status === 401) handleSessionExpired();
+      else alert(err.response?.data?.message || "Gagal membuat pesanan.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  /* ================= MENU GROUPING ================= */
   const menuByCategory = useMemo(() => {
     const map = {};
     for (const item of menuItems) {
@@ -219,40 +200,26 @@ function OrderMenu() {
     return CATEGORIES.map((cat) => ({ name: cat, items: map[cat] || [] }));
   }, [menuItems]);
 
-  /* ================= STATUS INFO ================= */
   const getStatusInfo = (status) => {
     switch (status) {
-      case "pending":
-        return { text: "Menunggu Konfirmasi", color: "#c0392b", bg: "#fdecea" };
-      case "cooking":
-        return { text: "Sedang Diproses", color: "#e67e22", bg: "#fdf2e9" };
-      case "served":
-        return { text: "Telah Diantar", color: "#27ae60", bg: "#e9f7ef" };
-      case "paid":
-        return { text: "Pembayaran Selesai", color: "#27ae60", bg: "#e9f7ef" };
-      default:
-        return { text: "Menunggu", color: "#7f8c8d", bg: "#f8f9fa" };
+      case "pending": return { text: "Menunggu Konfirmasi", color: COLORS.orange, bg: "#fff5f2" };
+      case "cooking": return { text: "Sedang Diproses", color: "#e67e22", bg: "#fdf2e9" };
+      case "served": return { text: "Telah Diantar", color: "#27ae60", bg: "#e9f7ef" };
+      case "paid": return { text: "Pembayaran Selesai", color: "#27ae60", bg: "#e9f7ef" };
+      default: return { text: "Menunggu", color: "#7f8c8d", bg: "#f8f9fa" };
     }
   };
 
-  const getDrinkItems = (items) => items.filter(item => item.category === "Minuman");
-
-  // ================= SESSION EXPIRED COMPONENT =================
   if (showSessionExpired) {
     return (
-      <>
+      <div style={styles.pageWrapper}>
         <div style={styles.expiredContainer}>
           <div style={styles.expiredCard}>
-            <div style={styles.expiredIcon}>✅</div>
-            <h2 style={styles.expiredTitle}>Pesanan Selesai</h2>
-            <p style={styles.expiredMessage}>
-              Terima kasih telah memesan di Warung Ndeso!
-            </p>
-            <p style={styles.expiredSubMessage}>
-              Silakan scan QR Code lagi untuk pesanan berikutnya
-            </p>
+            <div style={{ fontSize: "64px", marginBottom: "20px" }}>✅</div>
+            <h2 style={{ fontSize: "24px", color: "#27ae60", marginBottom: "12px" }}>Pesanan Selesai</h2>
+            <p style={{ color: "#333", marginBottom: "30px" }}>Terima kasih telah memesan di Warung Ndeso!</p>
             <button 
-              style={styles.expiredButton}
+              style={{ ...styles.orderButton, backgroundColor: COLORS.orange, width: "100%" }} 
               onClick={() => navigate("/")}
             >
               Kembali ke Beranda
@@ -260,153 +227,104 @@ function OrderMenu() {
           </div>
         </div>
         <Footer />
-      </>
+      </div>
     );
   }
 
-  const LockAlert = () => (
-    <div style={styles.alertOverlay}>
-      <div style={styles.alertBox}>
-        <div style={styles.alertIcon}>🔒</div>
-        <div style={styles.alertContent}>
-          <h4 style={styles.alertTitle}>Meja Sedang Digunakan</h4>
-          <p style={styles.alertMessage}>Meja {tableNumber} sedang digunakan oleh pelanggan lain.</p>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ================= LOCKED STATE =================
   if (isLocked) {
     return (
-      <>
+      <div style={styles.pageWrapper}>
         <div style={styles.lockedOverlay}>
           <div style={styles.lockedContent}>
             <div style={{ fontSize: "50px", marginBottom: "20px" }}>⚠️</div>
-            <h2 style={{ color: "#2c3e50" }}>Meja Sedang Digunakan</h2>
-            <p style={{ color: "#7f8c8d", lineHeight: "1.5", fontSize: "14px" }}>
+            <h2 style={{ color: COLORS.textDark }}>Meja Sedang Digunakan</h2>
+            <p style={{ color: COLORS.textLight, fontSize: "14px", marginBottom: "20px" }}>
               Maaf, meja nomor <b>{tableNumber}</b> sedang diakses oleh pelanggan lain.
             </p>
-            <button style={styles.refreshBtn} onClick={() => window.location.reload()}>Cek Lagi</button>
+            <button style={{ ...styles.orderButton, backgroundColor: COLORS.orange, width: "100%" }} onClick={() => window.location.reload()}>Cek Lagi</button>
           </div>
         </div>
         <Footer />
-      </>
+      </div>
     );
   }
 
-  // ================= ACTIVE ORDER STATE =================
-  if (activeOrder) {
-    const status = getStatusInfo(activeOrder.status);
-    const drinkItems = getDrinkItems(activeOrder.items);
-    const foodItems = activeOrder.items.filter(item => 
-      item.category === "Makanan" || item.category === "Paket" || item.category === "Cemilan"
-    );
-    const totalPrice = activeOrder.totalPrice || activeOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-    return (
-      <>
-        <div style={styles.container}>
-          {showLockAlert && <LockAlert />}
-          
-          <div style={styles.orderHeader}>
-            <h2 style={styles.tableTitle}>Meja {tableNumber}</h2>
-            <div style={{ ...styles.statusChip, backgroundColor: status.bg, color: status.color }}>
-              {status.text}
-            </div>
-          </div>
-
-          {drinkItems.length > 0 && (
-            <div style={styles.categoryBlock}>
-              <div style={styles.categoryTitle}>Minuman</div>
-              {drinkItems.map((item, idx) => (
-                <div key={idx} style={styles.orderItemRow}>
-                  <span>{item.quantity}x {item.name}</span>
-                  <span style={{
-                    ...styles.itemStatus,
-                    color: item.status === "served" ? "#27ae60" : "#0EA5E9"
-                  }}>
-                    {item.status === "served" ? "Diantar" : "Siap"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {foodItems.length > 0 && (
-            <div style={styles.categoryBlock}>
-              <div style={styles.categoryTitle}>Makanan</div>
-              {foodItems.map((item, idx) => (
-                <div key={idx} style={styles.orderItemRow}>
-                  <span>{item.quantity}x {item.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={styles.totalSection}>
-            <span style={styles.totalLabel}>TOTAL:</span>
-            <span style={styles.totalValue}>Rp {totalPrice.toLocaleString()}</span>
-          </div>
-
-          <p style={styles.infoNote}>
-            Minuman akan langsung diantar ketika siap
-          </p>
-        </div>
-        <Footer />
-      </>
-    );
-  }
-
-  // ================= MENU STATE (ORDER FORM) =================
   return (
-    <>
-      <div style={styles.container}>
-        {showLockAlert && <LockAlert />}
-        
-        <h2 style={styles.pageTitle}>Warung Ndeso – Meja {tableNumber}</h2>
+    <div style={styles.pageWrapper}>
+      {/* HEADER KUNING FULL */}
+      <div style={styles.yellowHeader}>
+        <h2 style={styles.headerTableText}>Meja {tableNumber}</h2>
+      </div>
 
-        {menuByCategory.map((cat) => cat.items.length > 0 && (
-          <div key={cat.name}>
-            <h3 style={styles.categoryHeading}>{cat.name}</h3>
-            {cat.items.map((item) => (
-              <MenuItem
-                key={item._id}
-                item={item}
-                qty={cart[item._id] || 0}
-                onAdd={addToCart}
-                onRemove={removeFromCart}
-              />
-            ))}
+      {/* KONTAINER MENU MELENGKUNG */}
+      <div style={styles.contentContainer}>
+        {showLockAlert && (
+          <div style={styles.alertOverlay}>
+            <div style={styles.alertBox}>🔒 Meja {tableNumber} sedang digunakan</div>
           </div>
-        ))}
+        )}
 
-        {!!Object.keys(cart).length && (
-          <div style={styles.cartBar}>
-            <b style={styles.cartTotal}>Rp {totalPrice.toLocaleString()}</b>
-            <button 
-              style={{
-                ...styles.orderButton,
-                opacity: isSubmitting ? 0.7 : 1,
-                cursor: isSubmitting ? "wait" : "pointer"
-              }}
-              onClick={handleOrder}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Memproses..." : "PESAN"}
-            </button>
+        {activeOrder ? (
+          <div style={{ padding: "0 20px" }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
+              <div style={{ ...styles.statusChip, backgroundColor: getStatusInfo(activeOrder.status).bg, color: getStatusInfo(activeOrder.status).color }}>
+                {getStatusInfo(activeOrder.status).text}
+              </div>
+            </div>
+            {activeOrder.items.map((item, idx) => (
+              <div key={idx} style={styles.orderItemRow}>
+                <span>{item.quantity}x {item.name}</span>
+                <span style={{ fontWeight: "bold", color: COLORS.orange }}>Rp {(item.price * item.quantity).toLocaleString()}</span>
+              </div>
+            ))}
+            <div style={styles.totalSection}>
+              <span>TOTAL:</span>
+              <span style={styles.totalValue}>Rp {(activeOrder.totalPrice || 0).toLocaleString()}</span>
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: "0 20px 100px 20px" }}>
+            {menuByCategory.map((cat) => cat.items.length > 0 && (
+              <div key={cat.name} style={{ marginBottom: "25px" }}>
+                <h3 style={styles.categoryHeading}>{cat.name}</h3>
+                {cat.items.map((item) => (
+                  <MenuItem
+                    key={item._id}
+                    item={item}
+                    qty={cart[item._id] || 0}
+                    onAdd={addToCart}
+                    onRemove={removeFromCart}
+                  />
+                ))}
+              </div>
+            ))}
           </div>
         )}
       </div>
+
+      {/* CART FLOATING BAR */}
+      {!!Object.keys(cart).length && !activeOrder && (
+        <div style={styles.cartBar}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <span style={{ fontSize: "11px", color: "#888" }}>Total Pesanan</span>
+            <b style={styles.cartTotal}>Rp {totalPrice.toLocaleString()}</b>
+          </div>
+          <button 
+            style={{ ...styles.orderButton, backgroundColor: COLORS.orange, opacity: isSubmitting ? 0.7 : 1 }}
+            onClick={handleOrder}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "..." : "PESAN SEKARANG"}
+          </button>
+        </div>
+      )}
       <Footer />
-    </>
+    </div>
   );
 }
 
-/* ================= MENU ITEM COMPONENT ================= */
-const ASSET_URL = process.env.REACT_APP_ASSET_URL;
-
 const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
+  const ASSET_URL = process.env.REACT_APP_ASSET_URL;
   return (
     <div style={styles.menuCard}>
       <img
@@ -422,12 +340,14 @@ const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
       <div style={styles.menuAction}>
         {qty ? (
           <div style={styles.qtyWrapper}>
-            <button style={styles.qtyButton} onClick={() => onRemove(item)}>−</button>
-            <span>{qty}</span>
-            <button style={styles.qtyButton} onClick={() => onAdd(item)}>+</button>
+            <button style={styles.qtyBtnSmall} onClick={() => onRemove(item)}>−</button>
+            <span style={{ fontWeight: "bold", minWidth: "20px", textAlign: "center", fontSize: "14px" }}>{qty}</span>
+            <button style={styles.qtyBtnSmall} onClick={() => onAdd(item)}>+</button>
           </div>
         ) : (
-          <button style={styles.addButton} onClick={() => onAdd(item)}>Tambah</button>
+          <button style={{ ...styles.addButton, color: COLORS.orange, borderColor: COLORS.orange }} onClick={() => onAdd(item)}>
+            Tambah
+          </button>
         )}
       </div>
     </div>
@@ -436,321 +356,166 @@ const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
 
 /* ================= STYLES ================= */
 const styles = {
-  container: { 
-    padding: "20px", 
-    maxWidth: "500px", 
+  pageWrapper: {
+    backgroundColor: COLORS.white,
+    minHeight: "100vh",
+    maxWidth: "500px",
     margin: "0 auto",
-    minHeight: "calc(100vh - 80px)",
-    backgroundColor: "#f8f9fa"
-  },
-  
-  pageTitle: { 
-    textAlign: "center", 
-    color: "#2c3e50", 
-    marginBottom: "20px",
-    fontSize: "20px",
-    fontWeight: "500"
-  },
-  
-  orderHeader: {
+    position: "relative",
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "20px",
-    paddingBottom: "10px",
-    borderBottom: "1px solid #e0e0e0"
+    flexDirection: "column"
   },
-  tableTitle: {
-    fontSize: "24px",
-    fontWeight: "600",
-    color: "#333",
+  yellowHeader: {
+    backgroundColor: COLORS.yellow,
+    height: "160px", 
+    width: "100%",
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    paddingTop: "30px",
+    position: "relative",
+    zIndex: 1
+  },
+  headerTableText: {
+    color: COLORS.white,
+    fontSize: "26px",
+    fontWeight: "800",
     margin: 0
   },
-  statusChip: {
-    padding: "6px 14px",
-    borderRadius: "20px",
-    fontSize: "13px",
-    fontWeight: "500"
+  contentContainer: {
+    flex: 1,
+    position: "relative",
+    zIndex: 2,
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: "35px",
+    borderTopRightRadius: "35px",
+    marginTop: "-60px", // Menarik kontainer putih ke atas header kuning
+    paddingTop: "35px",
+    minHeight: "600px",
+    boxShadow: "0 -10px 20px rgba(0,0,0,0.05)"
   },
-  
-  categoryBlock: {
-    marginBottom: "24px"
-  },
-  categoryTitle: {
-    fontSize: "14px",
-    fontWeight: "600",
-    color: "#c0392b",
-    marginBottom: "10px",
-    paddingLeft: "8px",
-    borderLeft: "3px solid #c0392b"
-  },
-  orderItemRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "8px 0",
-    borderBottom: "1px solid #f0f0f0",
-    fontSize: "14px",
-    color: "#333"
-  },
-  itemStatus: {
-    fontSize: "12px",
-    fontWeight: "500"
-  },
-  
-  totalSection: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: "16px",
-    paddingTop: "12px",
-    borderTop: "2px solid #e0e0e0"
-  },
-  totalLabel: {
-    fontSize: "14px",
-    fontWeight: "600",
-    color: "#333"
-  },
-  totalValue: {
+  categoryHeading: {
+    borderLeft: `5px solid ${COLORS.orange}`,
+    paddingLeft: "15px",
+    color: COLORS.orange,
     fontSize: "18px",
-    fontWeight: "700",
-    color: "#c0392b"
+    fontWeight: "bold",
+    marginBottom: "18px"
   },
-  
-  infoNote: {
-    textAlign: "center",
-    fontSize: "11px",
-    color: "#7f8c8d",
-    marginTop: "20px",
-    padding: "10px",
-    backgroundColor: "#fff",
-    borderRadius: "8px"
-  },
-  
-  categoryHeading: { 
-    borderLeft: "4px solid #c0392b", 
-    paddingLeft: "10px", 
-    color: "#c0392b", 
-    marginBottom: "15px",
-    fontSize: "16px",
-    fontWeight: "500"
-  },
-  
   menuCard: {
     display: "flex",
     alignItems: "center",
-    gap: "12px",
+    gap: "15px",
     background: "#fff",
-    padding: "12px",
-    borderRadius: "12px",
-    marginBottom: "10px",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
+    padding: "15px",
+    borderRadius: "20px",
+    marginBottom: "15px",
+    boxShadow: "0 4px 15px rgba(0,0,0,0.06)",
+    border: "1px solid #f2f2f2"
   },
   menuImage: {
-    width: "60px",
-    height: "60px",
-    borderRadius: "10px",
+    width: "85px",
+    height: "85px",
+    borderRadius: "15px",
     objectFit: "cover"
   },
-  menuInfo: {
-    flex: 1
-  },
-  menuName: {
-    fontWeight: "600",
-    fontSize: "14px",
-    marginBottom: "2px",
-    color: "#2c3e50"
-  },
-  menuDesc: {
-    fontSize: "11px",
-    color: "#999",
-    marginBottom: "4px"
-  },
-  menuPrice: {
-    fontSize: "13px",
+  menuInfo: { flex: 1 },
+  menuName: { fontWeight: "bold", fontSize: "16px", color: "#333", marginBottom: "4px" },
+  menuDesc: { fontSize: "11px", color: "#888", marginBottom: "6px", lineHeight: "1.4" },
+  menuPrice: { fontWeight: "800", color: COLORS.orange, fontSize: "15px" },
+  menuAction: { flexShrink: 0 },
+  addButton: {
+    padding: "7px 20px",
+    borderRadius: "15px",
+    border: "2px solid",
+    background: "transparent",
     fontWeight: "bold",
-    color: "#c0392b"
+    cursor: "pointer",
+    fontSize: "13px"
   },
-  menuAction: {
-    flexShrink: 0
-  },
-  
   qtyWrapper: {
     display: "flex",
     alignItems: "center",
     gap: "10px",
-    background: "#f0f0f0",
-    borderRadius: "20px",
-    padding: "4px 10px"
-  },
-  qtyButton: {
-    width: "26px",
-    height: "26px",
-    borderRadius: "50%",
-    border: "none",
-    background: "#fff",
-    cursor: "pointer",
-    fontWeight: "bold",
-    fontSize: "16px",
-    color: "#c0392b"
-  },
-  addButton: {
-    padding: "6px 14px",
-    borderRadius: "20px",
-    border: "1px solid #c0392b",
-    background: "#fff",
-    color: "#c0392b",
-    fontSize: "12px",
-    cursor: "pointer"
-  },
-  
-  cartBar: {
-    position: "fixed",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    background: "#fff",
-    padding: "12px 20px",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    boxShadow: "0 -2px 10px rgba(0,0,0,0.1)",
-    borderTop: "1px solid #eee"
-  },
-  cartTotal: {
-    color: "#c0392b",
-    fontSize: "16px"
-  },
-  orderButton: {
-    background: "#c0392b",
-    color: "#fff",
-    border: "none",
-    padding: "10px 24px",
-    borderRadius: "8px",
-    fontWeight: "600",
-    cursor: "pointer"
-  },
-  
-  // Session Expired / Pesanan Selesai styles
-  expiredContainer: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: "calc(100vh - 80px)",
-    padding: "20px",
-    backgroundColor: "#f8f9fa"
-  },
-  expiredCard: {
-    backgroundColor: "white",
-    borderRadius: "20px",
-    padding: "40px 30px",
-    textAlign: "center",
-    maxWidth: "400px",
-    boxShadow: "0 10px 25px rgba(0,0,0,0.1)"
-  },
-  expiredIcon: {
-    fontSize: "64px",
-    marginBottom: "20px"
-  },
-  expiredTitle: {
-    fontSize: "24px",
-    fontWeight: "600",
-    color: "#27ae60",
-    marginBottom: "12px"
-  },
-  expiredMessage: {
-    fontSize: "16px",
-    color: "#333",
-    marginBottom: "8px"
-  },
-  expiredSubMessage: {
-    fontSize: "13px",
-    color: "#666",
-    marginBottom: "30px"
-  },
-  expiredButton: {
-    backgroundColor: "#c0392b",
-    color: "white",
-    border: "none",
-    padding: "12px 24px",
-    borderRadius: "10px",
-    fontSize: "14px",
-    fontWeight: "500",
-    cursor: "pointer"
-  },
-  
-  lockedOverlay: {
-    position: "fixed",
-    top: 0, left: 0, right: 0, bottom: 0,
-    background: "rgba(255,255,255,0.98)",
-    zIndex: 9999,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "20px",
-    textAlign: "center"
-  },
-  lockedContent: {
-    background: "#fff",
-    padding: "30px 20px",
-    borderRadius: "16px",
-    maxWidth: "300px"
-  },
-  refreshBtn: {
-    marginTop: "20px",
-    padding: "10px 20px",
-    borderRadius: "25px",
-    border: "none",
-    background: "#c0392b",
-    color: "#fff",
-    fontWeight: "bold",
-    cursor: "pointer",
-    width: "100%"
-  },
-  
-  alertOverlay: {
-    position: "fixed",
-    top: "20px",
-    left: "20px",
-    right: "20px",
-    zIndex: 10000,
-    display: "flex",
-    justifyContent: "center",
-    pointerEvents: "none"
-  },
-  alertBox: {
-    backgroundColor: "white",
+    background: "#f9f9f9",
+    padding: "5px",
     borderRadius: "12px",
-    padding: "12px 16px",
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    maxWidth: "350px",
-    border: "1px solid #fdecea",
-    pointerEvents: "auto",
-    boxShadow: "0 2px 10px rgba(0,0,0,0.1)"
+    border: "1px solid #eee"
   },
-  alertIcon: {
-    fontSize: "20px",
-    background: "#fdecea",
-    width: "32px",
-    height: "32px",
+  qtyBtnSmall: {
+    width: "30px",
+    height: "30px",
+    border: "none",
+    background: COLORS.orange,
+    color: "#fff",
     borderRadius: "10px",
+    cursor: "pointer",
+    fontWeight: "bold",
+    fontSize: "18px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center"
   },
-  alertTitle: {
-    margin: 0,
-    fontSize: "13px",
-    fontWeight: "600",
-    color: "#c0392b"
+  cartBar: {
+    position: "fixed",
+    bottom: 25,
+    left: "50%",
+    transform: "translateX(-50%)",
+    width: "92%",
+    maxWidth: "460px",
+    background: "#fff",
+    padding: "15px 25px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderRadius: "22px",
+    boxShadow: "0 8px 30px rgba(0,0,0,0.2)",
+    zIndex: 100,
+    border: "1px solid #eee"
   },
-  alertMessage: {
-    margin: 0,
-    fontSize: "12px",
-    color: "#7f8c8d"
-  }
+  cartTotal: { fontSize: "18px", color: COLORS.orange, fontWeight: "800" },
+  orderButton: {
+    color: "#fff",
+    border: "none",
+    padding: "12px 25px",
+    borderRadius: "15px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    fontSize: "14px"
+  },
+  orderHeader: {
+    display: "flex",
+    justifyContent: "center",
+    marginBottom: "20px"
+  },
+  statusChip: {
+    padding: "8px 20px",
+    borderRadius: "20px",
+    fontSize: "14px",
+    fontWeight: "600"
+  },
+  orderItemRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    padding: "14px 0",
+    borderBottom: "1px dashed #ddd",
+    fontSize: "15px"
+  },
+  totalSection: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: "25px",
+    paddingTop: "20px",
+    borderTop: `2px solid ${COLORS.yellow}`
+  },
+  totalValue: { fontSize: "22px", color: COLORS.orange, fontWeight: "900" },
+  expiredContainer: { flex: 1, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" },
+  expiredCard: { background: "#fff", padding: "40px", borderRadius: "30px", textAlign: "center", boxShadow: "0 10px 40px rgba(0,0,0,0.1)", width: "100%" },
+  lockedOverlay: { flex: 1, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" },
+  lockedContent: { background: "#fff", padding: "40px", borderRadius: "30px", textAlign: "center", boxShadow: "0 10px 40px rgba(0,0,0,0.1)", width: "100%" },
+  alertOverlay: { position: "fixed", top: "20px", left: 0, right: 0, zIndex: 1000, display: "flex", justifyContent: "center" },
+  alertBox: { background: "rgba(0,0,0,0.8)", color: "#fff", padding: "10px 20px", borderRadius: "12px", fontSize: "13px" }
 };
 
 export default OrderMenu;

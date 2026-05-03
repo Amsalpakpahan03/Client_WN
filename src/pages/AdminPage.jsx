@@ -1,4 +1,6 @@
+// pages/AdminPage.jsx
 import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import socket from "../api/socket";
 import {
@@ -8,20 +10,22 @@ import {
   Plus,
   Trash,
   Image as ImageIcon,
-  ChefHat,
-  TrendingUp,
-  DollarSign,
   ClipboardList,
   Clock,
   Coffee,
   Utensils,
+  LogOut,
+  TrendingUp,
+  DollarSign,
 } from "lucide-react";
 
 const AdminPage = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("orders");
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [adminName, setAdminName] = useState("");
   const [newProduct, setNewProduct] = useState({
     name: "",
     price: "",
@@ -30,6 +34,39 @@ const AdminPage = () => {
     imageFile: null,
   });
   const [imagePreview, setImagePreview] = useState(null);
+
+  // Check authentication on mount
+  useEffect(() => {
+    const isAuth = sessionStorage.getItem("admin_auth") === "true";
+    const username = sessionStorage.getItem("admin_username");
+    
+    if (!isAuth) {
+      navigate("/admin-login");
+      return;
+    }
+    
+    setAdminName(username || "Admin");
+  }, [navigate]);
+
+  // Auto logout if session expired (8 hours)
+  useEffect(() => {
+    const checkSession = () => {
+      const loginTime = sessionStorage.getItem("admin_login_time");
+      if (loginTime && (Date.now() - parseInt(loginTime) >= 8 * 60 * 60 * 1000)) {
+        handleLogout();
+      }
+    };
+    
+    const interval = setInterval(checkSession, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("admin_auth");
+    sessionStorage.removeItem("admin_username");
+    sessionStorage.removeItem("admin_login_time");
+    navigate("/admin-login");
+  };
 
   // Urutkan orders dari yang terbaru ke yang lama
   const fetchOrders = useCallback(async () => {
@@ -45,6 +82,9 @@ const AdminPage = () => {
       console.log("[ADMIN] Orders fetched:", data.length, "orders");
     } catch (err) {
       console.error("[ADMIN] Gagal mengambil data pesanan", err);
+      if (err.response?.status === 401) {
+        handleLogout();
+      }
     } finally {
       setIsLoading(false);
     }
@@ -60,6 +100,9 @@ const AdminPage = () => {
       );
     } catch (err) {
       console.error("[ADMIN] Gagal mengambil data menu:", err);
+      if (err.response?.status === 401) {
+        handleLogout();
+      }
     }
   }, []);
 
@@ -222,6 +265,14 @@ const AdminPage = () => {
               </div>
             </div>
           </div>
+          
+          <div style={styles.adminInfo}>
+            <span style={styles.adminName}>👋 Halo, {adminName}</span>
+            <button onClick={handleLogout} style={styles.logoutBtn}>
+              <LogOut size={16} /> Logout
+            </button>
+          </div>
+          
           <div style={styles.tabWrapper}>
             <button
               onClick={() => setActiveTab("orders")}
@@ -249,7 +300,7 @@ const AdminPage = () => {
                 backgroundColor: "#FFF7ED",
               }}
             >
-              <TrendingUp />
+              <TrendingUp size={20} />
             </div>
             <div>
               <p style={styles.statLabel}>Total Pesanan</p>
@@ -264,7 +315,7 @@ const AdminPage = () => {
                 backgroundColor: "#F0FDF4",
               }}
             >
-              <DollarSign />
+              <DollarSign size={20} />
             </div>
             <div>
               <p style={styles.statLabel}>Estimasi Omzet</p>
@@ -284,7 +335,7 @@ const AdminPage = () => {
                 backgroundColor: "#F5F3FF",
               }}
             >
-              <Package />
+              <Package size={20} />
             </div>
             <div>
               <p style={styles.statLabel}>Total Menu</p>
@@ -297,7 +348,11 @@ const AdminPage = () => {
           <div style={styles.ordersGrid}>
             {isLoading && orders.length === 0 ? (
               <div style={{ textAlign: "center", padding: "40px" }}>
-                <Loader className="animate-spin" />
+                <Loader className="animate-spin" size={40} />
+              </div>
+            ) : orders.length === 0 ? (
+              <div style={styles.emptyState}>
+                <p>Belum ada pesanan</p>
               </div>
             ) : (
               orders.map((o) => (
@@ -335,7 +390,6 @@ const AdminPage = () => {
                         </span>
                       </div>
 
-                      {/* FIXED: Daftar item - HANYA MINUMAN yang punya status, MAKANAN tanpa status */}
                       <div style={styles.itemList}>
                         {o.items.map((item, idx) => (
                           <div key={idx} style={styles.itemRow}>
@@ -352,7 +406,6 @@ const AdminPage = () => {
                                   {item.quantity}x
                                 </b>{" "}
                                 {item.name}
-                                {/* FIXED: Hanya tampilkan status untuk MINUMAN */}
                                 {item.category === "Minuman" && (
                                   <span
                                     style={{
@@ -372,9 +425,7 @@ const AdminPage = () => {
                                     )
                                   </span>
                                 )}
-                                {/* FIXED: MAKANAN TIDAK ADA STATUSNYA */}
                               </div>
-                              {/* Tombol Antar Minuman hanya untuk minuman yang belum diantar */}
                               {item.category === "Minuman" &&
                                 item.status !== "served" && (
                                   <button
@@ -551,10 +602,13 @@ const AdminPage = () => {
                         src={p.image_url || "/no-image.png"}
                         style={styles.productImage}
                         alt={p.name}
+                        onError={(e) => {
+                          e.target.src = "/no-image.png";
+                        }}
                       />
                     </div>
                     <div style={{ padding: 15 }}>
-                      <h4 style={{ margin: 0 }}>{p.name}</h4>
+                      <h4 style={{ margin: 0, fontSize: 14 }}>{p.name}</h4>
                       <p style={styles.productPrice}>
                         Rp {p.price?.toLocaleString()}
                       </p>
@@ -602,7 +656,6 @@ const styles = {
     gap: 15,
   },
   logoArea: { display: "flex", alignItems: "center", gap: 12 },
-  logoIcon: { backgroundColor: "#c0392b", padding: 8, borderRadius: 8 },
   logoText: { margin: 0, fontSize: 24, fontWeight: "bold", color: "#c0392b" },
   liveIndicator: { display: "flex", alignItems: "center", gap: 5 },
   pulseDot: {
@@ -610,12 +663,40 @@ const styles = {
     height: 8,
     backgroundColor: "#22C55E",
     borderRadius: "50%",
+    animation: "pulse 2s infinite",
   },
   liveText: {
     fontSize: 10,
     color: "#9CA3AF",
     fontWeight: "bold",
     textTransform: "uppercase",
+  },
+  adminInfo: {
+    display: "flex",
+    alignItems: "center",
+    gap: 15,
+    backgroundColor: "#F3F4F6",
+    padding: "8px 16px",
+    borderRadius: 12,
+  },
+  adminName: {
+    fontSize: 14,
+    fontWeight: 500,
+    color: "#374151",
+  },
+  logoutBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "6px 12px",
+    backgroundColor: "#EF4444",
+    color: "white",
+    border: "none",
+    borderRadius: 8,
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 500,
+    transition: "all 0.3s",
   },
   tabWrapper: {
     display: "flex",
@@ -634,6 +715,9 @@ const styles = {
     color: active ? "#c0392b" : "#6B7280",
     boxShadow: active ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
     transition: "0.3s",
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
   }),
   statsGrid: {
     display: "grid",
@@ -684,6 +768,7 @@ const styles = {
     padding: "4px 12px",
     borderRadius: 8,
     fontWeight: "bold",
+    fontSize: 12,
   },
   statusBadge: {
     fontSize: 10,
@@ -797,6 +882,10 @@ const styles = {
     padding: 8,
     borderRadius: 8,
     cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
   },
   actionBtnDisabled: (active) => ({
     backgroundColor: active ? "#E5E7EB" : "#F3F4F6",
@@ -813,6 +902,33 @@ const styles = {
     gap: 4,
     justifyContent: "center",
   }),
+  emptyState: {
+    textAlign: "center",
+    padding: "60px",
+    backgroundColor: "white",
+    borderRadius: 16,
+    color: "#9CA3AF",
+  },
 };
+
+// Add keyframes for pulse animation
+const styleSheet = document.createElement("style");
+styleSheet.textContent = `
+  @keyframes pulse {
+    0% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.5;
+      transform: scale(1.2);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+`;
+document.head.appendChild(styleSheet);
 
 export default AdminPage;
