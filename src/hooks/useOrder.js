@@ -1,129 +1,88 @@
-// import { useState, useEffect, useCallback } from "react";
-// import axios from "axios";
-
-// export const useOrder = (tableNumber) => {
-//   const [activeOrder, setActiveOrder] = useState(null);
-
-//   /* ================= CREATE ORDER ================= */
-//   const createOrder = async (payload) => {
-//     const token = localStorage.getItem("order_token");
-
-//     // const res = await axios.post(
-//     //   "http://localhost:5000/api/orders",
-//     //   payload,
-//     //   { headers: { Authorization: `Bearer ${token}` } }
-//     // );
-
-//     const res = await axios.post(
-//       "https://d4aa1b22-168c-44e1-a9a4-b990fed0bf50-00-2u5l4uo2l2hlm.sisko.replit.dev/api/orders",
-//       payload,
-//       { headers: { Authorization: `Bearer ${token}` } },
-//     );
-
-//     setActiveOrder(res.data);
-//     localStorage.setItem("activeOrderId", res.data._id);
-//   };
-
-//   /* ================= RESTORE ORDER (INI KUNCI UTAMA) ================= */
-//   useEffect(() => {
-//     if (!tableNumber) return;
-
-//     const orderId = localStorage.getItem("activeOrderId");
-//     if (!orderId) return;
-
-//     axios
-//       .get(
-//         `https://d4aa1b22-168c-44e1-a9a4-b990fed0bf50-00-2u5l4uo2l2hlm.sisko.replit.dev/api/orders/${orderId}`,
-//       )
-//       .then((res) => {
-//         // Jika order masih aktif → tampilkan status
-//         if (res.data && res.data.status !== "paid") {
-//           setActiveOrder(res.data);
-//         } else {
-//           localStorage.removeItem("activeOrderId");
-//         }
-//       })
-//       .catch(() => {
-//         localStorage.removeItem("activeOrderId");
-//       });
-//   }, [tableNumber]);
-
-//   /* ================= SOCKET UPDATE ================= */
-//   // const updateOrderFromSocket = useCallback((updatedOrder) => {
-//   //   setActiveOrder((current) => {
-//   //     if (!current) return current;
-//   //     if (current._id !== updatedOrder._id) return current;
-
-//   //     if (updatedOrder.status === "paid") {
-//   //       localStorage.removeItem("activeOrderId");
-//   //       return null;
-//   //     }
-
-//   //     return { ...current, ...updatedOrder };
-//   //   });
-//   // }, []);
-//   const updateOrderFromSocket = useCallback((updatedOrder) => {
-//     setActiveOrder((current) => {
-//       // jika belum ada order → socket boleh set
-//       if (!current) {
-//         localStorage.setItem("activeOrderId", updatedOrder._id);
-//         return updatedOrder;
-//       }
-
-//       // jika order berbeda → abaikan
-//       if (current._id !== updatedOrder._id) return current;
-
-//       // jika sudah dibayar → clear
-//       if (updatedOrder.status === "paid") {
-//         localStorage.removeItem("activeOrderId");
-//         return null;
-//       }
-
-//       return { ...current, ...updatedOrder };
-//     });
-//   }, []);
-
-//   return {
-//     activeOrder,
-//     createOrder,
-//     updateOrderFromSocket,
-//   };
-// };
-
 // hooks/useOrder.js
 import { useState, useEffect, useCallback } from 'react';
 import { OrderAPI } from '../api/order.api';
 import socket from '../api/socket';
+import axios from 'axios';
 
 export const useOrder = (tableNumber) => {
   const [activeOrder, setActiveOrder] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Helper function untuk mendapatkan/generate token
+  const getOrCreateToken = useCallback(async () => {
+    let token = localStorage.getItem("order_token");
+    
+    if (!token && tableNumber) {
+      console.log("[ORDER] No token found, generating for table:", tableNumber);
+      try {
+        // PERBAIKAN: Gunakan baseURL yang benar (tanpa /api di akhir)
+        const baseURL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5000";
+        console.log("[ORDER] Fetching token from:", `${baseURL}/test-token/${tableNumber}`);
+        
+        const response = await axios.get(`${baseURL}/test-token/${tableNumber}`);
+        token = response.data.token;
+        localStorage.setItem("order_token", token);
+        console.log("[ORDER] Token generated successfully:", token);
+      } catch (err) {
+        console.error("[ORDER] Failed to generate token:", err);
+        throw new Error("Failed to generate table token");
+      }
+    }
+    
+    return token;
+  }, [tableNumber]);
+
   /* ================= CREATE ORDER ================= */
   const createOrder = useCallback(async (payload) => {
     setIsLoading(true);
     setError(null);
+    
     try {
-      console.log("[ORDER] Creating order for table:", tableNumber, payload);
+      console.log("[ORDER] Starting order creation for table:", tableNumber);
       
-      const res = await OrderAPI.create(payload);
+      // Pastikan token ada sebelum membuat order
+      const token = await getOrCreateToken();
+      console.log("[ORDER] Token status:", token ? "Available" : "Not available");
+      
+      // Pastikan payload memiliki struktur yang benar
+      const finalPayload = {
+        tableNumber: String(tableNumber), // Pastikan string
+        items: (payload.items || []).map(item => ({
+          name: item.name,
+          quantity: Number(item.quantity),
+          price: Number(item.price),
+          category: item.category,
+          status: item.status || "pending"
+        })),
+        totalPrice: Number(payload.totalPrice || 0)
+      };
+      
+      console.log("[ORDER] Final payload:", JSON.stringify(finalPayload, null, 2));
+      
+      const res = await OrderAPI.create(finalPayload);
       const newOrder = res.data.data || res.data;
       
       setActiveOrder(newOrder);
       localStorage.setItem("activeOrderId", newOrder._id);
       
-      console.log("[ORDER] Order created:", newOrder._id);
+      console.log("[ORDER] ✅ Order created successfully:", newOrder._id);
       return newOrder;
     } catch (err) {
       const errMsg = err.response?.data?.message || err.message;
-      console.error("[ORDER] Create Error:", errMsg);
+      console.error("[ORDER] ❌ Create Error:", errMsg);
+      console.error("[ORDER] Error details:", {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message
+      });
+      
       setError(errMsg);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [tableNumber]);
+  }, [tableNumber, getOrCreateToken]);
 
   /* ================= RESTORE ORDER ================= */
   useEffect(() => {
@@ -144,7 +103,7 @@ export const useOrder = (tableNumber) => {
         // Jika order masih aktif → tampilkan status
         if (resData && resData.status !== "paid") {
           setActiveOrder(resData);
-          console.log("[ORDER] Restored:", resData._id);
+          console.log("[ORDER] ✅ Restored order:", resData._id, "Status:", resData.status);
         } else {
           localStorage.removeItem("activeOrderId");
           console.log("[ORDER] Order already paid or not found, cleared");
@@ -160,7 +119,7 @@ export const useOrder = (tableNumber) => {
 
   /* ================= SOCKET UPDATE ================= */
   const updateOrderFromSocket = useCallback((updatedOrder) => {
-    console.log("[ORDER] Socket Update:", updatedOrder);
+    console.log("[ORDER] Socket Update received:", updatedOrder);
     
     setActiveOrder((current) => {
       // jika belum ada order → socket boleh set
@@ -172,18 +131,18 @@ export const useOrder = (tableNumber) => {
 
       // jika order berbeda → abaikan
       if (current._id !== updatedOrder._id) {
-        console.log("[ORDER] Ignoring different order");
+        console.log("[ORDER] Ignoring different order. Current:", current._id, "Received:", updatedOrder._id);
         return current;
       }
 
       // jika sudah dibayar → clear
       if (updatedOrder.status === "paid") {
         localStorage.removeItem("activeOrderId");
-        console.log("[ORDER] Order paid, cleared");
+        console.log("[ORDER] Order paid, clearing local storage");
         return null;
       }
 
-      console.log("[ORDER] Merged socket update");
+      console.log("[ORDER] Merging socket update");
       return { ...current, ...updatedOrder };
     });
   }, []);
