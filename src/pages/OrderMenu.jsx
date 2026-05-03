@@ -50,50 +50,85 @@ function OrderMenu() {
     return id;
   }, []);
 
-  // Calculate statistics for delivered items
+  // Calculate statistics for delivered items - AMAN
   const deliveredStats = useMemo(() => {
-    const items = activeOrder?.items || [];
-    const totalItems = items.length;
-    const deliveredCount = items.filter(item => deliveredItems[item.name]?.delivered).length;
-    const drinkItems = items.filter(item => item.category === "Minuman");
-    const drinkDelivered = drinkItems.filter(item => deliveredItems[item.name]?.delivered).length;
-    
-    return {
-      totalItems,
-      deliveredCount,
-      drinkItems: drinkItems.length,
-      drinkDelivered,
-      hasPartialDelivery: deliveredCount > 0 && deliveredCount < totalItems
-    };
+    try {
+      const items = activeOrder?.items && Array.isArray(activeOrder.items) ? activeOrder.items : [];
+      const totalItems = items.length;
+      const deliveredCount = items.filter(item => deliveredItems[item?.name]?.delivered).length;
+      const drinkItems = items.filter(item => item?.category === "Minuman");
+      const drinkDelivered = drinkItems.filter(item => deliveredItems[item?.name]?.delivered).length;
+      
+      return {
+        totalItems,
+        deliveredCount,
+        drinkItems: drinkItems.length,
+        drinkDelivered,
+        hasPartialDelivery: deliveredCount > 0 && deliveredCount < totalItems
+      };
+    } catch (error) {
+      console.error("Error calculating deliveredStats:", error);
+      return {
+        totalItems: 0,
+        deliveredCount: 0,
+        drinkItems: 0,
+        drinkDelivered: 0,
+        hasPartialDelivery: false
+      };
+    }
   }, [activeOrder, deliveredItems]);
 
-  // Calculate total price safely
+  // Calculate total price safely - DIPERBAIKI
   const totalPrice = useMemo(() => {
-    if (!menuItems || menuItems.length === 0) return 0;
-    if (!cart) return 0;
-    
-    return menuItems.reduce((sum, item) => {
-      const quantity = cart[item._id] || 0;
-      const price = item.price || 0;
-      return sum + (quantity * price);
-    }, 0);
+    try {
+      // Validasi ketat untuk menuItems
+      if (!menuItems || !Array.isArray(menuItems) || menuItems.length === 0) {
+        return 0;
+      }
+      
+      // Validasi untuk cart
+      if (!cart || typeof cart !== 'object') {
+        return 0;
+      }
+      
+      let sum = 0;
+      for (const item of menuItems) {
+        if (item && item._id && cart[item._id]) {
+          const quantity = Number(cart[item._id]) || 0;
+          const price = Number(item.price) || 0;
+          sum += quantity * price;
+        }
+      }
+      return sum;
+    } catch (error) {
+      console.error("Error calculating totalPrice:", error);
+      return 0;
+    }
   }, [cart, menuItems]);
 
-  // Group menu by category safely
+  // Group menu by category safely - DIPERBAIKI
   const menuByCategory = useMemo(() => {
-    if (!menuItems || menuItems.length === 0) {
+    try {
+      if (!menuItems || !Array.isArray(menuItems) || menuItems.length === 0) {
+        return CATEGORIES.map((cat) => ({ name: cat, items: [] }));
+      }
+      
+      const map = {};
+      for (const item of menuItems) {
+        if (item && item.category && item._id) {
+          if (!map[item.category]) map[item.category] = [];
+          map[item.category].push(item);
+        }
+      }
+      
+      return CATEGORIES.map((cat) => ({ 
+        name: cat, 
+        items: map[cat] || [] 
+      }));
+    } catch (error) {
+      console.error("Error grouping menu by category:", error);
       return CATEGORIES.map((cat) => ({ name: cat, items: [] }));
     }
-    
-    const map = {};
-    for (const item of menuItems) {
-      if (!map[item.category]) map[item.category] = [];
-      map[item.category].push(item);
-    }
-    return CATEGORIES.map((cat) => ({ 
-      name: cat, 
-      items: map[cat] || [] 
-    }));
   }, [menuItems]);
 
   const isTokenExpired = (token) => {
@@ -172,7 +207,7 @@ function OrderMenu() {
     };
   }, [tableNumber, clientId]);
 
-  // Socket order updates effect
+  // Socket order updates effect - DIPERBAIKI
   useEffect(() => {
     if (!tableNumber) return;
     socket.emit("joinTable", tableNumber);
@@ -183,17 +218,17 @@ function OrderMenu() {
       
       updateProgressByStatus(updatedOrder.status);
       
-      // Track delivered items per item
+      // Track delivered items per item - dengan validasi
       if (updatedOrder.items && Array.isArray(updatedOrder.items)) {
         const newDelivered = {};
         updatedOrder.items.forEach(item => {
-          if (item.status === "served" || item.isDelivered === true) {
+          if (item && (item.status === "served" || item.isDelivered === true)) {
             newDelivered[item.name] = {
               delivered: true,
               deliveredAt: item.deliveredAt || new Date().toISOString(),
               category: item.category
             };
-          } else if (deliveredItems[item.name]) {
+          } else if (item && deliveredItems[item.name]) {
             newDelivered[item.name] = deliveredItems[item.name];
           }
         });
@@ -222,7 +257,7 @@ function OrderMenu() {
       socket.off("itemDelivered", itemDeliveredHandler);
       socket.emit("leaveTable", tableNumber);
     };
-  }, [tableNumber, updateOrderFromSocket]);
+  }, [tableNumber, updateOrderFromSocket, deliveredItems]);
 
   const updateProgressByStatus = (status) => {
     switch (status) {
@@ -244,10 +279,12 @@ function OrderMenu() {
   };
 
   const addToCart = useCallback((item) => {
+    if (!item || !item._id) return;
     setCart((prev) => ({ ...prev, [item._id]: (prev[item._id] || 0) + 1 }));
   }, []);
 
   const removeFromCart = useCallback((item) => {
+    if (!item || !item._id) return;
     setCart((prev) => {
       const qty = prev[item._id] || 0;
       if (qty <= 1) {
@@ -271,19 +308,19 @@ function OrderMenu() {
       return;
     }
 
-    if (!menuItems || menuItems.length === 0) {
+    if (!menuItems || !Array.isArray(menuItems) || menuItems.length === 0) {
       alert("Data menu tidak tersedia");
       return;
     }
 
     const items = menuItems
-      .filter((m) => cart[m._id])
+      .filter((m) => m && m._id && cart[m._id])
       .map((m) => ({
-        name: m.name,
-        description: m.description,
+        name: m.name || "Unknown",
+        description: m.description || "",
         quantity: cart[m._id],
         price: m.price || 0,
-        category: m.category,
+        category: m.category || "Lainnya",
         status: "pending"
       }));
 
@@ -427,7 +464,7 @@ function OrderMenu() {
           </div>
         )}
 
-        {activeOrder && activeOrder.items ? (
+        {activeOrder && activeOrder.items && Array.isArray(activeOrder.items) && activeOrder.items.length > 0 ? (
           <div style={{ padding: "0 20px" }}>
             <div style={styles.statusContainer}>
               <div style={styles.statusHeader}>
@@ -479,49 +516,44 @@ function OrderMenu() {
               </div>
             </div>
 
-            {activeOrder.items && activeOrder.items.length > 0 ? (
-              <div style={styles.orderItemsContainer}>
-                {activeOrder.items.map((item, idx) => {
-                  const isDelivered = deliveredItems[item.name]?.delivered;
-                  const isDrink = item.category === "Minuman";
-                  
-                  return (
-                    <div key={idx} style={styles.orderItemRow}>
-                      <div style={styles.orderItemInfo}>
-                        <span style={styles.orderItemQuantity}>{item.quantity}x</span>
-                        <span style={styles.orderItemName}>
-                          {item.name}
-                          {isDelivered && (
-                            <span style={styles.deliveredBadge}>
-                              <span style={styles.checkIcon}>✓</span> Sudah Diantar
-                            </span>
-                          )}
-                          {!isDelivered && isDrink && activeOrder.status === "cooking" && (
-                            <span style={styles.preparingBadge}>
-                              <span style={styles.clockIcon}>⏱️</span> Sedang Disiapkan
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                      <div style={styles.orderItemRight}>
-                        <span style={{ fontWeight: "bold", color: COLORS.orange }}>
-                          Rp {(item.price * item.quantity).toLocaleString()}
-                        </span>
+            <div style={styles.orderItemsContainer}>
+              {activeOrder.items.map((item, idx) => {
+                if (!item) return null;
+                const isDelivered = deliveredItems[item.name]?.delivered;
+                const isDrink = item.category === "Minuman";
+                
+                return (
+                  <div key={idx} style={styles.orderItemRow}>
+                    <div style={styles.orderItemInfo}>
+                      <span style={styles.orderItemQuantity}>{item.quantity}x</span>
+                      <span style={styles.orderItemName}>
+                        {item.name}
                         {isDelivered && (
-                          <div style={styles.deliveredTime}>
-                            {new Date(deliveredItems[item.name].deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </div>
+                          <span style={styles.deliveredBadge}>
+                            <span style={styles.checkIcon}>✓</span> Sudah Diantar
+                          </span>
                         )}
-                      </div>
+                        {!isDelivered && isDrink && activeOrder.status === "cooking" && (
+                          <span style={styles.preparingBadge}>
+                            <span style={styles.clockIcon}>⏱️</span> Sedang Disiapkan
+                          </span>
+                        )}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '40px' }}>
-                <p>Tidak ada item dalam pesanan</p>
-              </div>
-            )}
+                    <div style={styles.orderItemRight}>
+                      <span style={{ fontWeight: "bold", color: COLORS.orange }}>
+                        Rp {(item.price * item.quantity).toLocaleString()}
+                      </span>
+                      {isDelivered && (
+                        <div style={styles.deliveredTime}>
+                          {new Date(deliveredItems[item.name].deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
             
             <div style={styles.totalSection}>
               <span>TOTAL:</span>
@@ -601,28 +633,30 @@ function OrderMenu() {
   );
 }
 
-// MenuItem component
+// MenuItem component - DIPERBAIKI
 const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
   const ASSET_URL = process.env.REACT_APP_ASSET_URL || "http://localhost:5000";
   
   const getImageUrl = () => {
-    if (!item.image_url) return `${ASSET_URL}/uploads/no-image.png`;
+    if (!item || !item.image_url) return `${ASSET_URL}/uploads/no-image.png`;
     if (item.image_url.startsWith("http")) return item.image_url;
     return `${ASSET_URL}/uploads/${item.image_url}`;
   };
+
+  if (!item) return null;
 
   return (
     <div style={styles.menuCard}>
       <img
         src={getImageUrl()}
-        alt={item.name}
+        alt={item.name || "Menu item"}
         style={styles.menuImage}
         onError={(e) => {
           e.target.src = `${ASSET_URL}/uploads/no-image.png`;
         }}
       />
       <div style={styles.menuInfo}>
-        <div style={styles.menuName}>{item.name}</div>
+        <div style={styles.menuName}>{item.name || "Unknown"}</div>
         {item.description && <div style={styles.menuDesc}>{item.description}</div>}
         <div style={styles.menuPrice}>Rp {(item.price || 0).toLocaleString()}</div>
       </div>

@@ -1,6 +1,7 @@
 // hooks/useOrder.js
 import { useState, useEffect, useCallback } from 'react';
 import { OrderAPI } from '../api/order.api';
+import socket from '../api/socket';
 import axios from 'axios';
 
 export const useOrder = (tableNumber) => {
@@ -15,6 +16,7 @@ export const useOrder = (tableNumber) => {
     if (!token && tableNumber) {
       console.log("[ORDER] No token found, generating for table:", tableNumber);
       try {
+        // PERBAIKAN: Gunakan baseURL yang benar (tanpa /api di akhir)
         const baseURL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5000";
         console.log("[ORDER] Fetching token from:", `${baseURL}/test-token/${tableNumber}`);
         
@@ -39,11 +41,13 @@ export const useOrder = (tableNumber) => {
     try {
       console.log("[ORDER] Starting order creation for table:", tableNumber);
       
+      // Pastikan token ada sebelum membuat order
       const token = await getOrCreateToken();
       console.log("[ORDER] Token status:", token ? "Available" : "Not available");
       
+      // Pastikan payload memiliki struktur yang benar
       const finalPayload = {
-        tableNumber: String(tableNumber),
+        tableNumber: String(tableNumber), // Pastikan string
         items: (payload.items || []).map(item => ({
           name: item.name,
           quantity: Number(item.quantity),
@@ -96,6 +100,7 @@ export const useOrder = (tableNumber) => {
         const res = await OrderAPI.getById(orderId);
         const resData = res.data.data || res.data;
         
+        // Jika order masih aktif → tampilkan status
         if (resData && resData.status !== "paid") {
           setActiveOrder(resData);
           console.log("[ORDER] ✅ Restored order:", resData._id, "Status:", resData.status);
@@ -117,17 +122,20 @@ export const useOrder = (tableNumber) => {
     console.log("[ORDER] Socket Update received:", updatedOrder);
     
     setActiveOrder((current) => {
+      // jika belum ada order → socket boleh set
       if (!current) {
         localStorage.setItem("activeOrderId", updatedOrder._id);
         console.log("[ORDER] Socket set new order:", updatedOrder._id);
         return updatedOrder;
       }
 
+      // jika order berbeda → abaikan
       if (current._id !== updatedOrder._id) {
         console.log("[ORDER] Ignoring different order. Current:", current._id, "Received:", updatedOrder._id);
         return current;
       }
 
+      // jika sudah dibayar → clear
       if (updatedOrder.status === "paid") {
         localStorage.removeItem("activeOrderId");
         console.log("[ORDER] Order paid, clearing local storage");
