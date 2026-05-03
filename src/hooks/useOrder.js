@@ -9,7 +9,7 @@ export const useOrder = (tableNumber) => {
   const [activeOrder, setActiveOrder] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [socket, setSocket] = useState(null); // Tambahkan state untuk socket jika diperlukan
+  // const [socket, setSocket] = useState(null); // Tambahkan state untuk socket jika diperlukan
 
   // Helper function untuk mendapatkan/generate token
   const getOrCreateToken = useCallback(async () => {
