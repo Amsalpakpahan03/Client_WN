@@ -28,8 +28,8 @@ function OrderMenu() {
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const tableNumber = query.get("table");
 
-  const { menuItems = [], isLoading: menuLoading } = useMenu();
-  const { activeOrder, createOrder, updateOrderFromSocket, isLoading: orderLoading } = useOrder(tableNumber);
+  const { menuItems = [] } = useMenu();
+  const { activeOrder, createOrder, updateOrderFromSocket } = useOrder(tableNumber);
 
   const [orderToken, setOrderToken] = useState(null);
   const [cart, setCart] = useState({});
@@ -50,86 +50,22 @@ function OrderMenu() {
     return id;
   }, []);
 
-  // Calculate statistics for delivered items - AMAN
+  // Calculate statistics for delivered items (moved before conditional returns)
   const deliveredStats = useMemo(() => {
-    try {
-      const items = activeOrder?.items && Array.isArray(activeOrder.items) ? activeOrder.items : [];
-      const totalItems = items.length;
-      const deliveredCount = items.filter(item => deliveredItems[item?.name]?.delivered).length;
-      const drinkItems = items.filter(item => item?.category === "Minuman");
-      const drinkDelivered = drinkItems.filter(item => deliveredItems[item?.name]?.delivered).length;
-      
-      return {
-        totalItems,
-        deliveredCount,
-        drinkItems: drinkItems.length,
-        drinkDelivered,
-        hasPartialDelivery: deliveredCount > 0 && deliveredCount < totalItems
-      };
-    } catch (error) {
-      console.error("Error calculating deliveredStats:", error);
-      return {
-        totalItems: 0,
-        deliveredCount: 0,
-        drinkItems: 0,
-        drinkDelivered: 0,
-        hasPartialDelivery: false
-      };
-    }
+    const items = activeOrder?.items || [];
+    const totalItems = items.length;
+    const deliveredCount = items.filter(item => deliveredItems[item.name]?.delivered).length;
+    const drinkItems = items.filter(item => item.category === "Minuman");
+    const drinkDelivered = drinkItems.filter(item => deliveredItems[item.name]?.delivered).length;
+    
+    return {
+      totalItems,
+      deliveredCount,
+      drinkItems: drinkItems.length,
+      drinkDelivered,
+      hasPartialDelivery: deliveredCount > 0 && deliveredCount < totalItems
+    };
   }, [activeOrder, deliveredItems]);
-
-  // Calculate total price safely - DIPERBAIKI
-  const totalPrice = useMemo(() => {
-    try {
-      // Validasi ketat untuk menuItems
-      if (!menuItems || !Array.isArray(menuItems) || menuItems.length === 0) {
-        return 0;
-      }
-      
-      // Validasi untuk cart
-      if (!cart || typeof cart !== 'object') {
-        return 0;
-      }
-      
-      let sum = 0;
-      for (const item of menuItems) {
-        if (item && item._id && cart[item._id]) {
-          const quantity = Number(cart[item._id]) || 0;
-          const price = Number(item.price) || 0;
-          sum += quantity * price;
-        }
-      }
-      return sum;
-    } catch (error) {
-      console.error("Error calculating totalPrice:", error);
-      return 0;
-    }
-  }, [cart, menuItems]);
-
-  // Group menu by category safely - DIPERBAIKI
-  const menuByCategory = useMemo(() => {
-    try {
-      if (!menuItems || !Array.isArray(menuItems) || menuItems.length === 0) {
-        return CATEGORIES.map((cat) => ({ name: cat, items: [] }));
-      }
-      
-      const map = {};
-      for (const item of menuItems) {
-        if (item && item.category && item._id) {
-          if (!map[item.category]) map[item.category] = [];
-          map[item.category].push(item);
-        }
-      }
-      
-      return CATEGORIES.map((cat) => ({ 
-        name: cat, 
-        items: map[cat] || [] 
-      }));
-    } catch (error) {
-      console.error("Error grouping menu by category:", error);
-      return CATEGORIES.map((cat) => ({ name: cat, items: [] }));
-    }
-  }, [menuItems]);
 
   const isTokenExpired = (token) => {
     if (!token) return true;
@@ -149,7 +85,6 @@ function OrderMenu() {
     }, 3000);
   }, [navigate]);
 
-  // Token validation effect
   useEffect(() => {
     const tokenFromUrl = query.get("token");
     if (tokenFromUrl) {
@@ -174,7 +109,6 @@ function OrderMenu() {
     }
   }, [query, handleSessionExpired]);
 
-  // Table lock effect
   useEffect(() => {
     if (!tableNumber) return;
     socket.emit("tryAccessTable", { tableId: tableNumber, clientId });
@@ -207,7 +141,6 @@ function OrderMenu() {
     };
   }, [tableNumber, clientId]);
 
-  // Socket order updates effect - DIPERBAIKI
   useEffect(() => {
     if (!tableNumber) return;
     socket.emit("joinTable", tableNumber);
@@ -218,17 +151,19 @@ function OrderMenu() {
       
       updateProgressByStatus(updatedOrder.status);
       
-      // Track delivered items per item - dengan validasi
+      // Track delivered items per item (not per order)
       if (updatedOrder.items && Array.isArray(updatedOrder.items)) {
         const newDelivered = {};
         updatedOrder.items.forEach(item => {
-          if (item && (item.status === "served" || item.isDelivered === true)) {
+          // Check for delivered status at item level
+          if (item.status === "served" || item.isDelivered === true) {
             newDelivered[item.name] = {
               delivered: true,
               deliveredAt: item.deliveredAt || new Date().toISOString(),
               category: item.category
             };
-          } else if (item && deliveredItems[item.name]) {
+          } else if (deliveredItems[item.name]) {
+            // Keep existing delivered status if not updated
             newDelivered[item.name] = deliveredItems[item.name];
           }
         });
@@ -236,6 +171,9 @@ function OrderMenu() {
       }
     };
 
+    socket.on("orderStatusUpdated", handler);
+
+    // Also listen for item-specific delivery events
     const itemDeliveredHandler = (data) => {
       if (String(data.tableNumber) !== String(tableNumber)) return;
       
@@ -249,7 +187,6 @@ function OrderMenu() {
       }));
     };
 
-    socket.on("orderStatusUpdated", handler);
     socket.on("itemDelivered", itemDeliveredHandler);
 
     return () => {
@@ -279,12 +216,10 @@ function OrderMenu() {
   };
 
   const addToCart = useCallback((item) => {
-    if (!item || !item._id) return;
     setCart((prev) => ({ ...prev, [item._id]: (prev[item._id] || 0) + 1 }));
   }, []);
 
   const removeFromCart = useCallback((item) => {
-    if (!item || !item._id) return;
     setCart((prev) => {
       const qty = prev[item._id] || 0;
       if (qty <= 1) {
@@ -296,49 +231,37 @@ function OrderMenu() {
     });
   }, []);
 
+  const totalPrice = useMemo(() => {
+    return menuItems.reduce((sum, item) => sum + (cart[item._id] || 0) * (item.price || 0), 0);
+  }, [cart, menuItems]);
+
   const handleOrder = async () => {
     const token = localStorage.getItem("order_token");
     if (!token || isTokenExpired(token)) {
       handleSessionExpired();
       return;
     }
-    
-    if (!cart || Object.keys(cart).length === 0) {
+    if (Object.keys(cart).length === 0) {
       alert("Silakan pilih menu terlebih dahulu");
-      return;
-    }
-
-    if (!menuItems || !Array.isArray(menuItems) || menuItems.length === 0) {
-      alert("Data menu tidak tersedia");
       return;
     }
 
     const items = menuItems
-      .filter((m) => m && m._id && cart[m._id])
+      .filter((m) => cart[m._id])
       .map((m) => ({
-        name: m.name || "Unknown",
-        description: m.description || "",
+        name: m.name,
+        description: m.description,
         quantity: cart[m._id],
-        price: m.price || 0,
-        category: m.category || "Lainnya",
-        status: "pending"
+        price: m.price,
+        category: m.category,
+        status: "pending" // initial status per item
       }));
-
-    if (items.length === 0) {
-      alert("Silakan pilih menu terlebih dahulu");
-      return;
-    }
 
     setIsSubmitting(true);
     setShowOrderAnimation(true);
     
     try {
-      await createOrder({ 
-        tableNumber, 
-        items, 
-        totalPrice: totalPrice || 0, 
-        token 
-      });
+      await createOrder({ tableNumber, items, totalPrice, token });
       setCart({});
       
       for (let i = 0; i <= 100; i += 10) {
@@ -349,15 +272,21 @@ function OrderMenu() {
       setTimeout(() => setShowOrderAnimation(false), 500);
     } catch (err) {
       setShowOrderAnimation(false);
-      if (err.response?.status === 401) {
-        handleSessionExpired();
-      } else {
-        alert(err.response?.data?.message || "Gagal membuat pesanan.");
-      }
+      if (err.response?.status === 401) handleSessionExpired();
+      else alert(err.response?.data?.message || "Gagal membuat pesanan.");
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const menuByCategory = useMemo(() => {
+    const map = {};
+    for (const item of menuItems) {
+      if (!map[item.category]) map[item.category] = [];
+      map[item.category].push(item);
+    }
+    return CATEGORIES.map((cat) => ({ name: cat, items: map[cat] || [] }));
+  }, [menuItems]);
 
   const getStatusInfo = (status) => {
     switch (status) {
@@ -369,25 +298,7 @@ function OrderMenu() {
     }
   };
 
-  // Loading state
-  if (menuLoading || orderLoading) {
-    return (
-      <div style={styles.pageWrapper}>
-        <div style={styles.yellowHeader}>
-          <h2 style={styles.headerTableText}>Warung Ndeso</h2>
-        </div>
-        <div style={styles.contentContainer}>
-          <div style={styles.loadingContainer}>
-            <div style={styles.spinnerCircle}></div>
-            <p style={{ marginTop: 20, color: COLORS.textLight }}>Memuat data...</p>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
-  // Session expired state
+  // Early returns after all hooks
   if (showSessionExpired) {
     return (
       <div style={styles.pageWrapper}>
@@ -409,41 +320,17 @@ function OrderMenu() {
     );
   }
 
-  // Locked state
   if (isLocked) {
     return (
       <div style={styles.pageWrapper}>
         <div style={styles.lockedOverlay}>
           <div style={styles.lockedContent}>
-            <div style={{ fontSize: "50px", marginBottom: "20px" }}>🔒</div>
+            <div style={{ fontSize: "50px", marginBottom: "20px" }}></div>
             <h2 style={{ color: COLORS.textDark }}>Meja Sedang Digunakan</h2>
             <p style={{ color: COLORS.textLight, fontSize: "14px", marginBottom: "20px" }}>
               Maaf, meja nomor <b>{tableNumber}</b> sedang diakses oleh pelanggan lain.
             </p>
             <button style={{ ...styles.orderButton, backgroundColor: COLORS.orange, width: "100%" }} onClick={() => window.location.reload()}>Cek Lagi</button>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
-  // Invalid table number
-  if (!tableNumber) {
-    return (
-      <div style={styles.pageWrapper}>
-        <div style={styles.yellowHeader}>
-          <h2 style={styles.headerTableText}>Error</h2>
-        </div>
-        <div style={styles.contentContainer}>
-          <div style={{ textAlign: 'center', padding: '50px 20px' }}>
-            <h2 style={{ color: COLORS.textDark }}>Nomor Meja Tidak Valid</h2>
-            <button 
-              style={{ ...styles.orderButton, backgroundColor: COLORS.orange, marginTop: 20 }}
-              onClick={() => navigate('/')}
-            >
-              Kembali ke Beranda
-            </button>
           </div>
         </div>
         <Footer />
@@ -464,7 +351,7 @@ function OrderMenu() {
           </div>
         )}
 
-        {activeOrder && activeOrder.items && Array.isArray(activeOrder.items) && activeOrder.items.length > 0 ? (
+        {activeOrder ? (
           <div style={{ padding: "0 20px" }}>
             <div style={styles.statusContainer}>
               <div style={styles.statusHeader}>
@@ -472,6 +359,11 @@ function OrderMenu() {
                   <div style={{ ...styles.statusChip, backgroundColor: getStatusInfo(activeOrder.status).bg, color: getStatusInfo(activeOrder.status).color }}>
                     {getStatusInfo(activeOrder.status).text}
                   </div>
+                  {deliveredStats.hasPartialDelivery && (
+                    {/* <div style={styles.partialBadge}>
+                      <span>✓</span> {deliveredStats.deliveredCount} dari {deliveredStats.totalItems} pesanan diantar
+                    </div> */}
+                  )}
                 </div>
               </div>
               
@@ -506,6 +398,7 @@ function OrderMenu() {
                   <div style={{
                     ...styles.progressBarFill,
                     width: `${orderProgress}%`,
+                    transition: "width 0.5s cubic-bezier(0.4, 0, 0.2, 1)"
                   }}>
                     <div style={styles.progressGlow} />
                   </div>
@@ -518,7 +411,6 @@ function OrderMenu() {
 
             <div style={styles.orderItemsContainer}>
               {activeOrder.items.map((item, idx) => {
-                if (!item) return null;
                 const isDelivered = deliveredItems[item.name]?.delivered;
                 const isDrink = item.category === "Minuman";
                 
@@ -560,6 +452,7 @@ function OrderMenu() {
               <span style={styles.totalValue}>Rp {(activeOrder.totalPrice || 0).toLocaleString()}</span>
             </div>
 
+            {/* Show delivery progress animation */}
             {deliveredStats.hasPartialDelivery && deliveredStats.drinkDelivered < deliveredStats.drinkItems && (
               <div style={styles.deliveryProgress}>
                 <div style={styles.deliveryProgressText}>
@@ -589,11 +482,6 @@ function OrderMenu() {
                 ))}
               </div>
             ))}
-            {menuByCategory.every(cat => cat.items.length === 0) && (
-              <div style={{ textAlign: 'center', padding: '50px 20px' }}>
-                <p>Tidak ada menu tersedia</p>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -613,7 +501,7 @@ function OrderMenu() {
         </div>
       )}
 
-      {Object.keys(cart).length > 0 && !activeOrder && (
+      {!!Object.keys(cart).length && !activeOrder && (
         <div style={styles.cartBar}>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <span style={{ fontSize: "11px", color: "#888" }}>Total Pesanan</span>
@@ -633,35 +521,22 @@ function OrderMenu() {
   );
 }
 
-// MenuItem component - DIPERBAIKI
 const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
-  const ASSET_URL = process.env.REACT_APP_ASSET_URL || "http://localhost:5000";
-  
-  const getImageUrl = () => {
-    if (!item || !item.image_url) return `${ASSET_URL}/uploads/no-image.png`;
-    if (item.image_url.startsWith("http")) return item.image_url;
-    return `${ASSET_URL}/uploads/${item.image_url}`;
-  };
-
-  if (!item) return null;
-
+  const ASSET_URL = process.env.REACT_APP_ASSET_URL;
   return (
     <div style={styles.menuCard}>
       <img
-        src={getImageUrl()}
-        alt={item.name || "Menu item"}
+        src={item.image_url?.startsWith("http") ? item.image_url : `${ASSET_URL}/uploads/${item.image_url || "no-image.png"}`}
+        alt={item.name}
         style={styles.menuImage}
-        onError={(e) => {
-          e.target.src = `${ASSET_URL}/uploads/no-image.png`;
-        }}
       />
       <div style={styles.menuInfo}>
-        <div style={styles.menuName}>{item.name || "Unknown"}</div>
+        <div style={styles.menuName}>{item.name}</div>
         {item.description && <div style={styles.menuDesc}>{item.description}</div>}
-        <div style={styles.menuPrice}>Rp {(item.price || 0).toLocaleString()}</div>
+        <div style={styles.menuPrice}>Rp {item.price.toLocaleString()}</div>
       </div>
       <div style={styles.menuAction}>
-        {qty > 0 ? (
+        {qty ? (
           <div style={styles.qtyWrapper}>
             <button style={styles.qtyBtnSmall} onClick={() => onRemove(item)}>−</button>
             <span style={{ fontWeight: "bold", minWidth: "20px", textAlign: "center", fontSize: "14px" }}>{qty}</span>
@@ -677,7 +552,6 @@ const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
   );
 });
 
-// Styles
 const styles = {
   pageWrapper: {
     backgroundColor: COLORS.white,
@@ -716,13 +590,6 @@ const styles = {
     paddingTop: "35px",
     minHeight: "600px",
     boxShadow: "0 -10px 20px rgba(0,0,0,0.05)"
-  },
-  loadingContainer: {
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    alignItems: "center",
-    minHeight: "400px"
   },
   categoryHeading: {
     borderLeft: `5px solid ${COLORS.orange}`,
@@ -827,6 +694,15 @@ const styles = {
     borderRadius: "20px",
     fontSize: "14px",
     fontWeight: "600",
+    display: "inline-block"
+  },
+  partialBadge: {
+    marginTop: "8px",
+    fontSize: "12px",
+    color: COLORS.orange,
+    backgroundColor: "#fff5f2",
+    padding: "4px 12px",
+    borderRadius: "12px",
     display: "inline-block"
   },
   orderItemRow: {
@@ -1080,7 +956,6 @@ const styles = {
   alertBox: { background: "rgba(0,0,0,0.8)", color: "#fff", padding: "10px 20px", borderRadius: "12px", fontSize: "13px" }
 };
 
-// Add global styles
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
   @keyframes spin {
@@ -1107,14 +982,6 @@ styleSheet.textContent = `
       opacity: 1;
       transform: translateY(0);
     }
-  }
-  
-  .waveDot:nth-child(2) {
-    animation-delay: 0.2s;
-  }
-  
-  .waveDot:nth-child(3) {
-    animation-delay: 0.4s;
   }
 `;
 document.head.appendChild(styleSheet);
