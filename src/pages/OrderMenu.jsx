@@ -28,8 +28,8 @@ function OrderMenu() {
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const tableNumber = query.get("table");
 
-  const { menuItems = [] } = useMenu();
-  const { activeOrder, createOrder, updateOrderFromSocket } = useOrder(tableNumber);
+  const { menuItems = [], isLoading: menuLoading } = useMenu();
+  const { activeOrder, createOrder, updateOrderFromSocket, isLoading: orderLoading } = useOrder(tableNumber);
 
   const [orderToken, setOrderToken] = useState(null);
   const [cart, setCart] = useState({});
@@ -50,7 +50,7 @@ function OrderMenu() {
     return id;
   }, []);
 
-  // Calculate statistics for delivered items (moved before conditional returns)
+  // Calculate statistics for delivered items
   const deliveredStats = useMemo(() => {
     const items = activeOrder?.items || [];
     const totalItems = items.length;
@@ -66,6 +66,35 @@ function OrderMenu() {
       hasPartialDelivery: deliveredCount > 0 && deliveredCount < totalItems
     };
   }, [activeOrder, deliveredItems]);
+
+  // Calculate total price safely
+  const totalPrice = useMemo(() => {
+    if (!menuItems || menuItems.length === 0) return 0;
+    if (!cart) return 0;
+    
+    return menuItems.reduce((sum, item) => {
+      const quantity = cart[item._id] || 0;
+      const price = item.price || 0;
+      return sum + (quantity * price);
+    }, 0);
+  }, [cart, menuItems]);
+
+  // Group menu by category safely
+  const menuByCategory = useMemo(() => {
+    if (!menuItems || menuItems.length === 0) {
+      return CATEGORIES.map((cat) => ({ name: cat, items: [] }));
+    }
+    
+    const map = {};
+    for (const item of menuItems) {
+      if (!map[item.category]) map[item.category] = [];
+      map[item.category].push(item);
+    }
+    return CATEGORIES.map((cat) => ({ 
+      name: cat, 
+      items: map[cat] || [] 
+    }));
+  }, [menuItems]);
 
   const isTokenExpired = (token) => {
     if (!token) return true;
@@ -85,6 +114,7 @@ function OrderMenu() {
     }, 3000);
   }, [navigate]);
 
+  // Token validation effect
   useEffect(() => {
     const tokenFromUrl = query.get("token");
     if (tokenFromUrl) {
@@ -109,6 +139,7 @@ function OrderMenu() {
     }
   }, [query, handleSessionExpired]);
 
+  // Table lock effect
   useEffect(() => {
     if (!tableNumber) return;
     socket.emit("tryAccessTable", { tableId: tableNumber, clientId });
@@ -141,6 +172,7 @@ function OrderMenu() {
     };
   }, [tableNumber, clientId]);
 
+  // Socket order updates effect
   useEffect(() => {
     if (!tableNumber) return;
     socket.emit("joinTable", tableNumber);
@@ -151,11 +183,10 @@ function OrderMenu() {
       
       updateProgressByStatus(updatedOrder.status);
       
-      // Track delivered items per item (not per order)
+      // Track delivered items per item
       if (updatedOrder.items && Array.isArray(updatedOrder.items)) {
         const newDelivered = {};
         updatedOrder.items.forEach(item => {
-          // Check for delivered status at item level
           if (item.status === "served" || item.isDelivered === true) {
             newDelivered[item.name] = {
               delivered: true,
@@ -163,7 +194,6 @@ function OrderMenu() {
               category: item.category
             };
           } else if (deliveredItems[item.name]) {
-            // Keep existing delivered status if not updated
             newDelivered[item.name] = deliveredItems[item.name];
           }
         });
@@ -171,9 +201,6 @@ function OrderMenu() {
       }
     };
 
-    socket.on("orderStatusUpdated", handler);
-
-    // Also listen for item-specific delivery events
     const itemDeliveredHandler = (data) => {
       if (String(data.tableNumber) !== String(tableNumber)) return;
       
@@ -187,6 +214,7 @@ function OrderMenu() {
       }));
     };
 
+    socket.on("orderStatusUpdated", handler);
     socket.on("itemDelivered", itemDeliveredHandler);
 
     return () => {
@@ -194,7 +222,7 @@ function OrderMenu() {
       socket.off("itemDelivered", itemDeliveredHandler);
       socket.emit("leaveTable", tableNumber);
     };
-  }, [tableNumber, updateOrderFromSocket, deliveredItems]);
+  }, [tableNumber, updateOrderFromSocket]);
 
   const updateProgressByStatus = (status) => {
     switch (status) {
@@ -231,18 +259,20 @@ function OrderMenu() {
     });
   }, []);
 
-  const totalPrice = useMemo(() => {
-    return menuItems.reduce((sum, item) => sum + (cart[item._id] || 0) * (item.price || 0), 0);
-  }, [cart, menuItems]);
-
   const handleOrder = async () => {
     const token = localStorage.getItem("order_token");
     if (!token || isTokenExpired(token)) {
       handleSessionExpired();
       return;
     }
-    if (Object.keys(cart).length === 0) {
+    
+    if (!cart || Object.keys(cart).length === 0) {
       alert("Silakan pilih menu terlebih dahulu");
+      return;
+    }
+
+    if (!menuItems || menuItems.length === 0) {
+      alert("Data menu tidak tersedia");
       return;
     }
 
@@ -252,16 +282,26 @@ function OrderMenu() {
         name: m.name,
         description: m.description,
         quantity: cart[m._id],
-        price: m.price,
+        price: m.price || 0,
         category: m.category,
-        status: "pending" // initial status per item
+        status: "pending"
       }));
+
+    if (items.length === 0) {
+      alert("Silakan pilih menu terlebih dahulu");
+      return;
+    }
 
     setIsSubmitting(true);
     setShowOrderAnimation(true);
     
     try {
-      await createOrder({ tableNumber, items, totalPrice, token });
+      await createOrder({ 
+        tableNumber, 
+        items, 
+        totalPrice: totalPrice || 0, 
+        token 
+      });
       setCart({});
       
       for (let i = 0; i <= 100; i += 10) {
@@ -272,21 +312,15 @@ function OrderMenu() {
       setTimeout(() => setShowOrderAnimation(false), 500);
     } catch (err) {
       setShowOrderAnimation(false);
-      if (err.response?.status === 401) handleSessionExpired();
-      else alert(err.response?.data?.message || "Gagal membuat pesanan.");
+      if (err.response?.status === 401) {
+        handleSessionExpired();
+      } else {
+        alert(err.response?.data?.message || "Gagal membuat pesanan.");
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  const menuByCategory = useMemo(() => {
-    const map = {};
-    for (const item of menuItems) {
-      if (!map[item.category]) map[item.category] = [];
-      map[item.category].push(item);
-    }
-    return CATEGORIES.map((cat) => ({ name: cat, items: map[cat] || [] }));
-  }, [menuItems]);
 
   const getStatusInfo = (status) => {
     switch (status) {
@@ -298,7 +332,25 @@ function OrderMenu() {
     }
   };
 
-  // Early returns after all hooks
+  // Loading state
+  if (menuLoading || orderLoading) {
+    return (
+      <div style={styles.pageWrapper}>
+        <div style={styles.yellowHeader}>
+          <h2 style={styles.headerTableText}>Warung Ndeso</h2>
+        </div>
+        <div style={styles.contentContainer}>
+          <div style={styles.loadingContainer}>
+            <div style={styles.spinnerCircle}></div>
+            <p style={{ marginTop: 20, color: COLORS.textLight }}>Memuat data...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Session expired state
   if (showSessionExpired) {
     return (
       <div style={styles.pageWrapper}>
@@ -320,17 +372,41 @@ function OrderMenu() {
     );
   }
 
+  // Locked state
   if (isLocked) {
     return (
       <div style={styles.pageWrapper}>
         <div style={styles.lockedOverlay}>
           <div style={styles.lockedContent}>
-            <div style={{ fontSize: "50px", marginBottom: "20px" }}></div>
+            <div style={{ fontSize: "50px", marginBottom: "20px" }}>🔒</div>
             <h2 style={{ color: COLORS.textDark }}>Meja Sedang Digunakan</h2>
             <p style={{ color: COLORS.textLight, fontSize: "14px", marginBottom: "20px" }}>
               Maaf, meja nomor <b>{tableNumber}</b> sedang diakses oleh pelanggan lain.
             </p>
             <button style={{ ...styles.orderButton, backgroundColor: COLORS.orange, width: "100%" }} onClick={() => window.location.reload()}>Cek Lagi</button>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Invalid table number
+  if (!tableNumber) {
+    return (
+      <div style={styles.pageWrapper}>
+        <div style={styles.yellowHeader}>
+          <h2 style={styles.headerTableText}>Error</h2>
+        </div>
+        <div style={styles.contentContainer}>
+          <div style={{ textAlign: 'center', padding: '50px 20px' }}>
+            <h2 style={{ color: COLORS.textDark }}>Nomor Meja Tidak Valid</h2>
+            <button 
+              style={{ ...styles.orderButton, backgroundColor: COLORS.orange, marginTop: 20 }}
+              onClick={() => navigate('/')}
+            >
+              Kembali ke Beranda
+            </button>
           </div>
         </div>
         <Footer />
@@ -351,7 +427,7 @@ function OrderMenu() {
           </div>
         )}
 
-        {activeOrder ? (
+        {activeOrder && activeOrder.items ? (
           <div style={{ padding: "0 20px" }}>
             <div style={styles.statusContainer}>
               <div style={styles.statusHeader}>
@@ -359,11 +435,6 @@ function OrderMenu() {
                   <div style={{ ...styles.statusChip, backgroundColor: getStatusInfo(activeOrder.status).bg, color: getStatusInfo(activeOrder.status).color }}>
                     {getStatusInfo(activeOrder.status).text}
                   </div>
-                  {deliveredStats.hasPartialDelivery && (
-                    {/* <div style={styles.partialBadge}>
-                      <span>✓</span> {deliveredStats.deliveredCount} dari {deliveredStats.totalItems} pesanan diantar
-                    </div> */}
-                  )}
                 </div>
               </div>
               
@@ -398,7 +469,6 @@ function OrderMenu() {
                   <div style={{
                     ...styles.progressBarFill,
                     width: `${orderProgress}%`,
-                    transition: "width 0.5s cubic-bezier(0.4, 0, 0.2, 1)"
                   }}>
                     <div style={styles.progressGlow} />
                   </div>
@@ -409,50 +479,55 @@ function OrderMenu() {
               </div>
             </div>
 
-            <div style={styles.orderItemsContainer}>
-              {activeOrder.items.map((item, idx) => {
-                const isDelivered = deliveredItems[item.name]?.delivered;
-                const isDrink = item.category === "Minuman";
-                
-                return (
-                  <div key={idx} style={styles.orderItemRow}>
-                    <div style={styles.orderItemInfo}>
-                      <span style={styles.orderItemQuantity}>{item.quantity}x</span>
-                      <span style={styles.orderItemName}>
-                        {item.name}
+            {activeOrder.items && activeOrder.items.length > 0 ? (
+              <div style={styles.orderItemsContainer}>
+                {activeOrder.items.map((item, idx) => {
+                  const isDelivered = deliveredItems[item.name]?.delivered;
+                  const isDrink = item.category === "Minuman";
+                  
+                  return (
+                    <div key={idx} style={styles.orderItemRow}>
+                      <div style={styles.orderItemInfo}>
+                        <span style={styles.orderItemQuantity}>{item.quantity}x</span>
+                        <span style={styles.orderItemName}>
+                          {item.name}
+                          {isDelivered && (
+                            <span style={styles.deliveredBadge}>
+                              <span style={styles.checkIcon}>✓</span> Sudah Diantar
+                            </span>
+                          )}
+                          {!isDelivered && isDrink && activeOrder.status === "cooking" && (
+                            <span style={styles.preparingBadge}>
+                              <span style={styles.clockIcon}>⏱️</span> Sedang Disiapkan
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div style={styles.orderItemRight}>
+                        <span style={{ fontWeight: "bold", color: COLORS.orange }}>
+                          Rp {(item.price * item.quantity).toLocaleString()}
+                        </span>
                         {isDelivered && (
-                          <span style={styles.deliveredBadge}>
-                            <span style={styles.checkIcon}>✓</span> Sudah Diantar
-                          </span>
+                          <div style={styles.deliveredTime}>
+                            {new Date(deliveredItems[item.name].deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
                         )}
-                        {!isDelivered && isDrink && activeOrder.status === "cooking" && (
-                          <span style={styles.preparingBadge}>
-                            <span style={styles.clockIcon}>⏱️</span> Sedang Disiapkan
-                          </span>
-                        )}
-                      </span>
+                      </div>
                     </div>
-                    <div style={styles.orderItemRight}>
-                      <span style={{ fontWeight: "bold", color: COLORS.orange }}>
-                        Rp {(item.price * item.quantity).toLocaleString()}
-                      </span>
-                      {isDelivered && (
-                        <div style={styles.deliveredTime}>
-                          {new Date(deliveredItems[item.name].deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <p>Tidak ada item dalam pesanan</p>
+              </div>
+            )}
             
             <div style={styles.totalSection}>
               <span>TOTAL:</span>
               <span style={styles.totalValue}>Rp {(activeOrder.totalPrice || 0).toLocaleString()}</span>
             </div>
 
-            {/* Show delivery progress animation */}
             {deliveredStats.hasPartialDelivery && deliveredStats.drinkDelivered < deliveredStats.drinkItems && (
               <div style={styles.deliveryProgress}>
                 <div style={styles.deliveryProgressText}>
@@ -482,6 +557,11 @@ function OrderMenu() {
                 ))}
               </div>
             ))}
+            {menuByCategory.every(cat => cat.items.length === 0) && (
+              <div style={{ textAlign: 'center', padding: '50px 20px' }}>
+                <p>Tidak ada menu tersedia</p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -501,7 +581,7 @@ function OrderMenu() {
         </div>
       )}
 
-      {!!Object.keys(cart).length && !activeOrder && (
+      {Object.keys(cart).length > 0 && !activeOrder && (
         <div style={styles.cartBar}>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <span style={{ fontSize: "11px", color: "#888" }}>Total Pesanan</span>
@@ -521,22 +601,33 @@ function OrderMenu() {
   );
 }
 
+// MenuItem component
 const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
-  const ASSET_URL = process.env.REACT_APP_ASSET_URL;
+  const ASSET_URL = process.env.REACT_APP_ASSET_URL || "http://localhost:5000";
+  
+  const getImageUrl = () => {
+    if (!item.image_url) return `${ASSET_URL}/uploads/no-image.png`;
+    if (item.image_url.startsWith("http")) return item.image_url;
+    return `${ASSET_URL}/uploads/${item.image_url}`;
+  };
+
   return (
     <div style={styles.menuCard}>
       <img
-        src={item.image_url?.startsWith("http") ? item.image_url : `${ASSET_URL}/uploads/${item.image_url || "no-image.png"}`}
+        src={getImageUrl()}
         alt={item.name}
         style={styles.menuImage}
+        onError={(e) => {
+          e.target.src = `${ASSET_URL}/uploads/no-image.png`;
+        }}
       />
       <div style={styles.menuInfo}>
         <div style={styles.menuName}>{item.name}</div>
         {item.description && <div style={styles.menuDesc}>{item.description}</div>}
-        <div style={styles.menuPrice}>Rp {item.price.toLocaleString()}</div>
+        <div style={styles.menuPrice}>Rp {(item.price || 0).toLocaleString()}</div>
       </div>
       <div style={styles.menuAction}>
-        {qty ? (
+        {qty > 0 ? (
           <div style={styles.qtyWrapper}>
             <button style={styles.qtyBtnSmall} onClick={() => onRemove(item)}>−</button>
             <span style={{ fontWeight: "bold", minWidth: "20px", textAlign: "center", fontSize: "14px" }}>{qty}</span>
@@ -552,6 +643,7 @@ const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
   );
 });
 
+// Styles
 const styles = {
   pageWrapper: {
     backgroundColor: COLORS.white,
@@ -590,6 +682,13 @@ const styles = {
     paddingTop: "35px",
     minHeight: "600px",
     boxShadow: "0 -10px 20px rgba(0,0,0,0.05)"
+  },
+  loadingContainer: {
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: "400px"
   },
   categoryHeading: {
     borderLeft: `5px solid ${COLORS.orange}`,
@@ -694,15 +793,6 @@ const styles = {
     borderRadius: "20px",
     fontSize: "14px",
     fontWeight: "600",
-    display: "inline-block"
-  },
-  partialBadge: {
-    marginTop: "8px",
-    fontSize: "12px",
-    color: COLORS.orange,
-    backgroundColor: "#fff5f2",
-    padding: "4px 12px",
-    borderRadius: "12px",
     display: "inline-block"
   },
   orderItemRow: {
@@ -956,6 +1046,7 @@ const styles = {
   alertBox: { background: "rgba(0,0,0,0.8)", color: "#fff", padding: "10px 20px", borderRadius: "12px", fontSize: "13px" }
 };
 
+// Add global styles
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
   @keyframes spin {
@@ -982,6 +1073,14 @@ styleSheet.textContent = `
       opacity: 1;
       transform: translateY(0);
     }
+  }
+  
+  .waveDot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+  
+  .waveDot:nth-child(3) {
+    animation-delay: 0.4s;
   }
 `;
 document.head.appendChild(styleSheet);
