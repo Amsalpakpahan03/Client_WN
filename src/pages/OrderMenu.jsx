@@ -1,9 +1,4 @@
-import React, {
-  useEffect,
-  useState,
-  useMemo,
-  useCallback,
-} from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 
@@ -19,17 +14,21 @@ const COLORS = {
   yellow: "#f3ca58",
   white: "#ffffff",
   textDark: "#2c3e50",
-  textLight: "#7f8c8d"
+  textLight: "#7f8c8d",
 };
 
 function OrderMenu() {
   const navigate = useNavigate();
   const location = useLocation();
-  const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const query = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search]
+  );
   const tableNumber = query.get("table");
 
   const { menuItems = [] } = useMenu();
-  const { activeOrder, createOrder, updateOrderFromSocket } = useOrder(tableNumber);
+  const { activeOrder, createOrder, updateOrderFromSocket } =
+    useOrder(tableNumber);
 
   const [orderToken, setOrderToken] = useState(null);
   const [cart, setCart] = useState({});
@@ -39,6 +38,7 @@ function OrderMenu() {
   const [showSessionExpired, setShowSessionExpired] = useState(false);
   const [orderProgress, setOrderProgress] = useState(0);
   const [showOrderAnimation, setShowOrderAnimation] = useState(false);
+  const [animationProgress, setAnimationProgress] = useState(0);
   const [deliveredItems, setDeliveredItems] = useState({});
 
   const clientId = useMemo(() => {
@@ -50,27 +50,34 @@ function OrderMenu() {
     return id;
   }, []);
 
-  // Calculate statistics for delivered items (moved before conditional returns)
+  // Calculate statistics for delivered items
   const deliveredStats = useMemo(() => {
-    const items = activeOrder?.items || [];
+    const items =
+      activeOrder?.items && Array.isArray(activeOrder.items)
+        ? activeOrder.items
+        : [];
     const totalItems = items.length;
-    const deliveredCount = items.filter(item => deliveredItems[item.name]?.delivered).length;
-    const drinkItems = items.filter(item => item.category === "Minuman");
-    const drinkDelivered = drinkItems.filter(item => deliveredItems[item.name]?.delivered).length;
-    
+    const deliveredCount = items.filter(
+      (item) => item?.name && deliveredItems[item.name]?.delivered
+    ).length;
+    const drinkItems = items.filter((item) => item?.category === "Minuman");
+    const drinkDelivered = drinkItems.filter(
+      (item) => item?.name && deliveredItems[item.name]?.delivered
+    ).length;
+
     return {
       totalItems,
       deliveredCount,
       drinkItems: drinkItems.length,
       drinkDelivered,
-      hasPartialDelivery: deliveredCount > 0 && deliveredCount < totalItems
+      hasPartialDelivery: deliveredCount > 0 && deliveredCount < totalItems,
     };
   }, [activeOrder, deliveredItems]);
 
   const isTokenExpired = (token) => {
     if (!token) return true;
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
+      const payload = JSON.parse(atob(token.split(".")[1]));
       const exp = payload.exp * 1000;
       return Date.now() >= exp;
     } catch (err) {
@@ -112,7 +119,7 @@ function OrderMenu() {
   useEffect(() => {
     if (!tableNumber) return;
     socket.emit("tryAccessTable", { tableId: tableNumber, clientId });
-    
+
     const denyHandler = () => {
       setIsLocked(true);
       setShowLockAlert(true);
@@ -120,7 +127,10 @@ function OrderMenu() {
     };
 
     const lockedHandler = (data) => {
-      if (String(data.tableId) === String(tableNumber) && data.clientId !== clientId) {
+      if (
+        String(data.tableId) === String(tableNumber) &&
+        data.clientId !== clientId
+      ) {
         setIsLocked(true);
         setShowLockAlert(true);
         setTimeout(() => setShowLockAlert(false), 5000);
@@ -148,22 +158,18 @@ function OrderMenu() {
     const handler = (updatedOrder) => {
       if (String(updatedOrder.tableNumber) !== String(tableNumber)) return;
       updateOrderFromSocket(updatedOrder);
-      
       updateProgressByStatus(updatedOrder.status);
-      
-      // Track delivered items per item (not per order)
+
       if (updatedOrder.items && Array.isArray(updatedOrder.items)) {
         const newDelivered = {};
-        updatedOrder.items.forEach(item => {
-          // Check for delivered status at item level
+        updatedOrder.items.forEach((item) => {
           if (item.status === "served" || item.isDelivered === true) {
             newDelivered[item.name] = {
               delivered: true,
               deliveredAt: item.deliveredAt || new Date().toISOString(),
-              category: item.category
+              category: item.category,
             };
           } else if (deliveredItems[item.name]) {
-            // Keep existing delivered status if not updated
             newDelivered[item.name] = deliveredItems[item.name];
           }
         });
@@ -171,22 +177,19 @@ function OrderMenu() {
       }
     };
 
-    socket.on("orderStatusUpdated", handler);
-
-    // Also listen for item-specific delivery events
     const itemDeliveredHandler = (data) => {
       if (String(data.tableNumber) !== String(tableNumber)) return;
-      
-      setDeliveredItems(prev => ({
+      setDeliveredItems((prev) => ({
         ...prev,
         [data.itemName]: {
           delivered: true,
           deliveredAt: data.deliveredAt || new Date().toISOString(),
-          category: data.category
-        }
+          category: data.category,
+        },
       }));
     };
 
+    socket.on("orderStatusUpdated", handler);
     socket.on("itemDelivered", itemDeliveredHandler);
 
     return () => {
@@ -232,7 +235,11 @@ function OrderMenu() {
   }, []);
 
   const totalPrice = useMemo(() => {
-    return menuItems.reduce((sum, item) => sum + (cart[item._id] || 0) * (item.price || 0), 0);
+    if (!Array.isArray(menuItems) || menuItems.length === 0) return 0;
+    return menuItems.reduce(
+      (sum, item) => sum + (cart[item._id] || 0) * (item.price || 0),
+      0
+    );
   }, [cart, menuItems]);
 
   const handleOrder = async () => {
@@ -254,21 +261,22 @@ function OrderMenu() {
         quantity: cart[m._id],
         price: m.price,
         category: m.category,
-        status: "pending" // initial status per item
+        status: "pending",
       }));
 
     setIsSubmitting(true);
     setShowOrderAnimation(true);
-    
+    setAnimationProgress(0);
+
     try {
       await createOrder({ tableNumber, items, totalPrice, token });
       setCart({});
-      
-      for (let i = 0; i <= 100; i += 10) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        setOrderProgress(i);
+
+      for (let i = 0; i <= 100; i += 5) {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        setAnimationProgress(i);
       }
-      
+
       setTimeout(() => setShowOrderAnimation(false), 500);
     } catch (err) {
       setShowOrderAnimation(false);
@@ -280,21 +288,35 @@ function OrderMenu() {
   };
 
   const menuByCategory = useMemo(() => {
+    if (!Array.isArray(menuItems) || menuItems.length === 0) {
+      return CATEGORIES.map((cat) => ({ name: cat, items: [] }));
+    }
     const map = {};
     for (const item of menuItems) {
-      if (!map[item.category]) map[item.category] = [];
-      map[item.category].push(item);
+      if (item && item.category) {
+        if (!map[item.category]) map[item.category] = [];
+        map[item.category].push(item);
+      }
     }
     return CATEGORIES.map((cat) => ({ name: cat, items: map[cat] || [] }));
   }, [menuItems]);
 
   const getStatusInfo = (status) => {
     switch (status) {
-      case "pending": return { text: "Menunggu Konfirmasi", color: COLORS.orange, bg: "#fff5f2" };
-      case "cooking": return { text: "Diproses", color: "#e67e22", bg: "#fdf2e9" };
-      case "served": return { text: "Diantar", color: "#27ae60", bg: "#e9f7ef" };
-      case "paid": return { text: "Pembayaran Selesai", color: "#27ae60", bg: "#e9f7ef" };
-      default: return { text: "Menunggu", color: "#7f8c8d", bg: "#f8f9fa" };
+      case "pending":
+        return {
+          text: "Menunggu Konfirmasi",
+          color: COLORS.orange,
+          bg: "#fff5f2",
+        };
+      case "cooking":
+        return { text: "Diproses", color: "#e67e22", bg: "#fdf2e9" };
+      case "served":
+        return { text: "Diantar", color: "#27ae60", bg: "#e9f7ef" };
+      case "paid":
+        return { text: "Pembayaran Selesai", color: "#27ae60", bg: "#e9f7ef" };
+      default:
+        return { text: "Menunggu", color: "#7f8c8d", bg: "#f8f9fa" };
     }
   };
 
@@ -305,10 +327,24 @@ function OrderMenu() {
         <div style={styles.expiredContainer}>
           <div style={styles.expiredCard}>
             <div style={{ fontSize: "64px", marginBottom: "20px" }}>✓</div>
-            <h2 style={{ fontSize: "24px", color: "#27ae60", marginBottom: "12px" }}>Pesanan Selesai</h2>
-            <p style={{ color: "#333", marginBottom: "30px" }}>Terima kasih telah memesan di Warung Ndeso!</p>
-            <button 
-              style={{ ...styles.orderButton, backgroundColor: COLORS.orange, width: "100%" }} 
+            <h2
+              style={{
+                fontSize: "24px",
+                color: "#27ae60",
+                marginBottom: "12px",
+              }}
+            >
+              Pesanan Selesai
+            </h2>
+            <p style={{ color: "#333", marginBottom: "30px" }}>
+              Terima kasih telah memesan di Warung Ndeso!
+            </p>
+            <button
+              style={{
+                ...styles.orderButton,
+                backgroundColor: COLORS.orange,
+                width: "100%",
+              }}
               onClick={() => navigate("/")}
             >
               Kembali ke Beranda
@@ -325,12 +361,54 @@ function OrderMenu() {
       <div style={styles.pageWrapper}>
         <div style={styles.lockedOverlay}>
           <div style={styles.lockedContent}>
-            <div style={{ fontSize: "50px", marginBottom: "20px" }}></div>
+            <div style={{ fontSize: "50px", marginBottom: "20px" }}>🔒</div>
             <h2 style={{ color: COLORS.textDark }}>Meja Sedang Digunakan</h2>
-            <p style={{ color: COLORS.textLight, fontSize: "14px", marginBottom: "20px" }}>
-              Maaf, meja nomor <b>{tableNumber}</b> sedang diakses oleh pelanggan lain.
+            <p
+              style={{
+                color: COLORS.textLight,
+                fontSize: "14px",
+                marginBottom: "20px",
+              }}
+            >
+              Maaf, meja nomor <b>{tableNumber}</b> sedang diakses oleh
+              pelanggan lain.
             </p>
-            <button style={{ ...styles.orderButton, backgroundColor: COLORS.orange, width: "100%" }} onClick={() => window.location.reload()}>Cek Lagi</button>
+            <button
+              style={{
+                ...styles.orderButton,
+                backgroundColor: COLORS.orange,
+                width: "100%",
+              }}
+              onClick={() => window.location.reload()}
+            >
+              Cek Lagi
+            </button>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!tableNumber) {
+    return (
+      <div style={styles.pageWrapper}>
+        <div style={styles.yellowHeader}>
+          <h2 style={styles.headerTableText}>Error</h2>
+        </div>
+        <div style={styles.contentContainer}>
+          <div style={{ textAlign: "center", padding: "50px 20px" }}>
+            <h2 style={{ color: COLORS.textDark }}>Nomor Meja Tidak Valid</h2>
+            <button
+              style={{
+                ...styles.orderButton,
+                backgroundColor: COLORS.orange,
+                marginTop: 20,
+              }}
+              onClick={() => navigate("/")}
+            >
+              Kembali ke Beranda
+            </button>
           </div>
         </div>
         <Footer />
@@ -347,7 +425,9 @@ function OrderMenu() {
       <div style={styles.contentContainer}>
         {showLockAlert && (
           <div style={styles.alertOverlay}>
-            <div style={styles.alertBox}>Meja {tableNumber} sedang digunakan</div>
+            <div style={styles.alertBox}>
+              Meja {tableNumber} sedang digunakan
+            </div>
           </div>
         )}
 
@@ -356,132 +436,157 @@ function OrderMenu() {
             <div style={styles.statusContainer}>
               <div style={styles.statusHeader}>
                 <div style={styles.statusTextContainer}>
-                  <div style={{ ...styles.statusChip, backgroundColor: getStatusInfo(activeOrder.status).bg, color: getStatusInfo(activeOrder.status).color }}>
-                    {getStatusInfo(activeOrder.status).text}
+                  <div
+                    style={{
+                      ...styles.statusChip,
+                      backgroundColor: getStatusInfo(activeOrder.status)?.bg || "#f8f9fa",
+                      color: getStatusInfo(activeOrder.status)?.color || "#7f8c8d",
+                    }}
+                  >
+                    {getStatusInfo(activeOrder.status)?.text || "Menunggu"}
                   </div>
-                  {deliveredStats.hasPartialDelivery && (
-                    {/* <div style={styles.partialBadge}>
-                      <span>✓</span> {deliveredStats.deliveredCount} dari {deliveredStats.totalItems} pesanan diantar
-                    </div> */}
-                  )}
                 </div>
               </div>
-              
+
               <div style={styles.progressWrapper}>
                 <div style={styles.progressSteps}>
                   {["pending", "cooking", "served"].map((stepStatus, idx) => {
-                    const isActive = orderProgress >= (idx + 1) * 33;
+                    const safeProgress = typeof orderProgress === 'number' ? orderProgress : 0;
+                    const isActive = safeProgress >= (idx + 1) * 33;
                     const isCurrent = activeOrder.status === stepStatus;
                     const stepInfo = getStatusInfo(stepStatus);
                     return (
                       <div key={stepStatus} style={styles.progressStep}>
-                        <div style={{
-                          ...styles.progressDot,
-                          backgroundColor: isActive ? COLORS.orange : "#e0e0e0",
-                          transform: isCurrent ? "scale(1.2)" : "scale(1)",
-                          boxShadow: isCurrent ? `0 0 0 3px ${COLORS.orange}40` : "none"
-                        }}>
+                        <div
+                          style={{
+                            ...styles.progressDot,
+                            backgroundColor: isActive ? COLORS.orange : "#e0e0e0",
+                            transform: isCurrent ? "scale(1.2)" : "scale(1)",
+                            boxShadow: isCurrent ? `0 0 0 3px ${COLORS.orange}40` : "none",
+                          }}
+                        >
                           {isActive && <div style={styles.progressDotInner} />}
                         </div>
-                        <div style={{
-                          ...styles.progressLabel,
-                          color: isActive ? COLORS.orange : "#999",
-                          fontWeight: isCurrent ? "600" : "400"
-                        }}>
-                          {stepInfo.text.split(" ")[0]}
+                        <div
+                          style={{
+                            ...styles.progressLabel,
+                            color: isActive ? COLORS.orange : "#999",
+                            fontWeight: isCurrent ? "600" : "400",
+                          }}
+                        >
+                          {stepInfo?.text?.split(" ")[0] || "Menunggu"}
                         </div>
                       </div>
                     );
                   })}
                 </div>
                 <div style={styles.progressBarContainer}>
-                  <div style={{
-                    ...styles.progressBarFill,
-                    width: `${orderProgress}%`,
-                    transition: "width 0.5s cubic-bezier(0.4, 0, 0.2, 1)"
-                  }}>
+                  <div
+                    style={{
+                      ...styles.progressBarFill,
+                      width: `${typeof orderProgress === 'number' ? orderProgress : 0}%`,
+                      transition: "width 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
+                    }}
+                  >
                     <div style={styles.progressGlow} />
                   </div>
                 </div>
                 <div style={styles.progressPercentage}>
-                  {Math.round(orderProgress)}%
+                  {typeof orderProgress === 'number' ? Math.round(orderProgress) : 0}%
                 </div>
               </div>
             </div>
 
             <div style={styles.orderItemsContainer}>
-              {activeOrder.items.map((item, idx) => {
-                const isDelivered = deliveredItems[item.name]?.delivered;
-                const isDrink = item.category === "Minuman";
-                
-                return (
-                  <div key={idx} style={styles.orderItemRow}>
-                    <div style={styles.orderItemInfo}>
-                      <span style={styles.orderItemQuantity}>{item.quantity}x</span>
-                      <span style={styles.orderItemName}>
-                        {item.name}
-                        {isDelivered && (
-                          <span style={styles.deliveredBadge}>
-                            <span style={styles.checkIcon}>✓</span> Sudah Diantar
-                          </span>
+              {activeOrder.items &&
+                Array.isArray(activeOrder.items) &&
+                activeOrder.items.map((item, idx) => {
+                  if (!item || typeof item !== "object") return null;
+
+                  const isDelivered = deliveredItems[item.name]?.delivered === true;
+                  const deliveredData = deliveredItems[item.name];
+                  const isDrink = item.category === "Minuman";
+
+                  return (
+                    <div key={idx} style={styles.orderItemRow}>
+                      <div style={styles.orderItemInfo}>
+                        <span style={styles.orderItemQuantity}>
+                          {item.quantity || 0}x
+                        </span>
+                        <span style={styles.orderItemName}>
+                          {item.name || "Unknown"}
+                          {isDelivered && (
+                            <span style={styles.deliveredBadge}>
+                              <span style={styles.checkIcon}>✓</span> Sudah Diantar
+                            </span>
+                          )}
+                          {!isDelivered &&
+                            isDrink &&
+                            activeOrder.status === "cooking" && (
+                              <span style={styles.preparingBadge}>
+                                <span style={styles.clockIcon}>⏱️</span> Sedang Disiapkan
+                              </span>
+                            )}
+                        </span>
+                      </div>
+                      <div style={styles.orderItemRight}>
+                        <span style={{ fontWeight: "bold", color: COLORS.orange }}>
+                          Rp {((item.price || 0) * (item.quantity || 0)).toLocaleString()}
+                        </span>
+                        {isDelivered && deliveredData?.deliveredAt && (
+                          <div style={styles.deliveredTime}>
+                            {new Date(deliveredData.deliveredAt).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </div>
                         )}
-                        {!isDelivered && isDrink && activeOrder.status === "cooking" && (
-                          <span style={styles.preparingBadge}>
-                            <span style={styles.clockIcon}>⏱️</span> Sedang Disiapkan
-                          </span>
-                        )}
-                      </span>
+                      </div>
                     </div>
-                    <div style={styles.orderItemRight}>
-                      <span style={{ fontWeight: "bold", color: COLORS.orange }}>
-                        Rp {(item.price * item.quantity).toLocaleString()}
-                      </span>
-                      {isDelivered && (
-                        <div style={styles.deliveredTime}>
-                          {new Date(deliveredItems[item.name].deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            
-            <div style={styles.totalSection}>
-              <span>TOTAL:</span>
-              <span style={styles.totalValue}>Rp {(activeOrder.totalPrice || 0).toLocaleString()}</span>
+                  );
+                })}
             </div>
 
-            {/* Show delivery progress animation */}
-            {deliveredStats.hasPartialDelivery && deliveredStats.drinkDelivered < deliveredStats.drinkItems && (
-              <div style={styles.deliveryProgress}>
-                <div style={styles.deliveryProgressText}>
-                  Minuman sudah diantar, makanan masih dimasak...
+            <div style={styles.totalSection}>
+              <span>TOTAL:</span>
+              <span style={styles.totalValue}>
+                Rp {(activeOrder.totalPrice || 0).toLocaleString()}
+              </span>
+            </div>
+
+            {deliveredStats.hasPartialDelivery &&
+              deliveredStats.drinkDelivered < deliveredStats.drinkItems && (
+                <div style={styles.deliveryProgress}>
+                  <div style={styles.deliveryProgressText}>
+                    Minuman sudah diantar, makanan masih dimasak...
+                  </div>
+                  <div style={styles.waveAnimation}>
+                    <div style={styles.waveDot} />
+                    <div style={styles.waveDot} />
+                    <div style={styles.waveDot} />
+                  </div>
                 </div>
-                <div style={styles.waveAnimation}>
-                  <div style={styles.waveDot} />
-                  <div style={styles.waveDot} />
-                  <div style={styles.waveDot} />
-                </div>
-              </div>
-            )}
+              )}
           </div>
         ) : (
           <div style={{ padding: "0 20px 100px 20px" }}>
-            {menuByCategory.map((cat) => cat.items.length > 0 && (
-              <div key={cat.name} style={{ marginBottom: "25px" }}>
-                <h3 style={styles.categoryHeading}>{cat.name}</h3>
-                {cat.items.map((item) => (
-                  <MenuItem
-                    key={item._id}
-                    item={item}
-                    qty={cart[item._id] || 0}
-                    onAdd={addToCart}
-                    onRemove={removeFromCart}
-                  />
-                ))}
-              </div>
-            ))}
+            {menuByCategory.map(
+              (cat) =>
+                cat.items.length > 0 && (
+                  <div key={cat.name} style={{ marginBottom: "25px" }}>
+                    <h3 style={styles.categoryHeading}>{cat.name}</h3>
+                    {cat.items.map((item) => (
+                      <MenuItem
+                        key={item._id}
+                        item={item}
+                        qty={cart[item._id] || 0}
+                        onAdd={addToCart}
+                        onRemove={removeFromCart}
+                      />
+                    ))}
+                  </div>
+                )
+            )}
           </div>
         )}
       </div>
@@ -494,9 +599,14 @@ function OrderMenu() {
             </div>
             <h3 style={styles.loadingTitle}>Memproses Pesanan</h3>
             <div style={styles.loadingBar}>
-              <div style={{ ...styles.loadingFill, width: `${orderProgress}%` }} />
+              <div
+                style={{
+                  ...styles.loadingFill,
+                  width: `${animationProgress}%`,
+                }}
+              />
             </div>
-            <p style={styles.loadingText}>{Math.round(orderProgress)}%</p>
+            <p style={styles.loadingText}>{Math.round(animationProgress)}%</p>
           </div>
         </div>
       )}
@@ -504,11 +614,17 @@ function OrderMenu() {
       {!!Object.keys(cart).length && !activeOrder && (
         <div style={styles.cartBar}>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ fontSize: "11px", color: "#888" }}>Total Pesanan</span>
+            <span style={{ fontSize: "11px", color: "#888" }}>
+              Total Pesanan
+            </span>
             <b style={styles.cartTotal}>Rp {totalPrice.toLocaleString()}</b>
           </div>
-          <button 
-            style={{ ...styles.orderButton, backgroundColor: COLORS.orange, opacity: isSubmitting ? 0.7 : 1 }}
+          <button
+            style={{
+              ...styles.orderButton,
+              backgroundColor: COLORS.orange,
+              opacity: isSubmitting ? 0.7 : 1,
+            }}
             onClick={handleOrder}
             disabled={isSubmitting}
           >
@@ -522,28 +638,56 @@ function OrderMenu() {
 }
 
 const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
-  const ASSET_URL = process.env.REACT_APP_ASSET_URL;
+  const ASSET_URL = process.env.REACT_APP_ASSET_URL || "http://localhost:5000";
+
+  if (!item) return null;
+
+  const getImageUrl = () => {
+    if (!item.image_url) return `${ASSET_URL}/uploads/no-image.png`;
+    if (item.image_url.startsWith("http")) return item.image_url;
+    return `${ASSET_URL}/uploads/${item.image_url}`;
+  };
+
   return (
     <div style={styles.menuCard}>
       <img
-        src={item.image_url?.startsWith("http") ? item.image_url : `${ASSET_URL}/uploads/${item.image_url || "no-image.png"}`}
-        alt={item.name}
+        src={getImageUrl()}
+        alt={item.name || "Menu item"}
         style={styles.menuImage}
+        onError={(e) => {
+          e.target.src = `${ASSET_URL}/uploads/no-image.png`;
+        }}
       />
       <div style={styles.menuInfo}>
-        <div style={styles.menuName}>{item.name}</div>
+        <div style={styles.menuName}>{item.name || "Unknown"}</div>
         {item.description && <div style={styles.menuDesc}>{item.description}</div>}
-        <div style={styles.menuPrice}>Rp {item.price.toLocaleString()}</div>
+        <div style={styles.menuPrice}>Rp {(item.price || 0).toLocaleString()}</div>
       </div>
       <div style={styles.menuAction}>
-        {qty ? (
+        {qty > 0 ? (
           <div style={styles.qtyWrapper}>
             <button style={styles.qtyBtnSmall} onClick={() => onRemove(item)}>−</button>
-            <span style={{ fontWeight: "bold", minWidth: "20px", textAlign: "center", fontSize: "14px" }}>{qty}</span>
+            <span
+              style={{
+                fontWeight: "bold",
+                minWidth: "20px",
+                textAlign: "center",
+                fontSize: "14px",
+              }}
+            >
+              {qty}
+            </span>
             <button style={styles.qtyBtnSmall} onClick={() => onAdd(item)}>+</button>
           </div>
         ) : (
-          <button style={{ ...styles.addButton, color: COLORS.orange, borderColor: COLORS.orange }} onClick={() => onAdd(item)}>
+          <button
+            style={{
+              ...styles.addButton,
+              color: COLORS.orange,
+              borderColor: COLORS.orange,
+            }}
+            onClick={() => onAdd(item)}
+          >
             Tambah
           </button>
         )}
@@ -560,24 +704,24 @@ const styles = {
     margin: "0 auto",
     position: "relative",
     display: "flex",
-    flexDirection: "column"
+    flexDirection: "column",
   },
   yellowHeader: {
     backgroundColor: COLORS.yellow,
-    height: "160px", 
+    height: "160px",
     width: "100%",
     display: "flex",
     alignItems: "flex-start",
     justifyContent: "center",
     paddingTop: "30px",
     position: "relative",
-    zIndex: 1
+    zIndex: 1,
   },
   headerTableText: {
     color: COLORS.white,
     fontSize: "26px",
     fontWeight: "800",
-    margin: 0
+    margin: 0,
   },
   contentContainer: {
     flex: 1,
@@ -589,7 +733,7 @@ const styles = {
     marginTop: "-60px",
     paddingTop: "35px",
     minHeight: "600px",
-    boxShadow: "0 -10px 20px rgba(0,0,0,0.05)"
+    boxShadow: "0 -10px 20px rgba(0,0,0,0.05)",
   },
   categoryHeading: {
     borderLeft: `5px solid ${COLORS.orange}`,
@@ -597,7 +741,7 @@ const styles = {
     color: COLORS.orange,
     fontSize: "18px",
     fontWeight: "bold",
-    marginBottom: "18px"
+    marginBottom: "18px",
   },
   menuCard: {
     display: "flex",
@@ -608,17 +752,27 @@ const styles = {
     borderRadius: "20px",
     marginBottom: "15px",
     boxShadow: "0 4px 15px rgba(0,0,0,0.06)",
-    border: "1px solid #f2f2f2"
+    border: "1px solid #f2f2f2",
   },
   menuImage: {
     width: "85px",
     height: "85px",
     borderRadius: "15px",
-    objectFit: "cover"
+    objectFit: "cover",
   },
   menuInfo: { flex: 1 },
-  menuName: { fontWeight: "bold", fontSize: "16px", color: "#333", marginBottom: "4px" },
-  menuDesc: { fontSize: "11px", color: "#888", marginBottom: "6px", lineHeight: "1.4" },
+  menuName: {
+    fontWeight: "bold",
+    fontSize: "16px",
+    color: "#333",
+    marginBottom: "4px",
+  },
+  menuDesc: {
+    fontSize: "11px",
+    color: "#888",
+    marginBottom: "6px",
+    lineHeight: "1.4",
+  },
   menuPrice: { fontWeight: "800", color: COLORS.orange, fontSize: "15px" },
   menuAction: { flexShrink: 0 },
   addButton: {
@@ -628,7 +782,7 @@ const styles = {
     background: "transparent",
     fontWeight: "bold",
     cursor: "pointer",
-    fontSize: "13px"
+    fontSize: "13px",
   },
   qtyWrapper: {
     display: "flex",
@@ -637,7 +791,7 @@ const styles = {
     background: "#f9f9f9",
     padding: "5px",
     borderRadius: "12px",
-    border: "1px solid #eee"
+    border: "1px solid #eee",
   },
   qtyBtnSmall: {
     width: "30px",
@@ -651,7 +805,7 @@ const styles = {
     fontSize: "18px",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
   },
   cartBar: {
     position: "fixed",
@@ -668,7 +822,7 @@ const styles = {
     borderRadius: "22px",
     boxShadow: "0 8px 30px rgba(0,0,0,0.2)",
     zIndex: 100,
-    border: "1px solid #eee"
+    border: "1px solid #eee",
   },
   cartTotal: { fontSize: "18px", color: COLORS.orange, fontWeight: "800" },
   orderButton: {
@@ -678,7 +832,7 @@ const styles = {
     borderRadius: "15px",
     fontWeight: "bold",
     cursor: "pointer",
-    fontSize: "14px"
+    fontSize: "14px",
   },
   buttonSpinner: {
     width: "16px",
@@ -687,23 +841,14 @@ const styles = {
     borderTop: "2px solid transparent",
     borderRadius: "50%",
     animation: "spin 0.8s linear infinite",
-    margin: "0 auto"
+    margin: "0 auto",
   },
   statusChip: {
     padding: "8px 20px",
     borderRadius: "20px",
     fontSize: "14px",
     fontWeight: "600",
-    display: "inline-block"
-  },
-  partialBadge: {
-    marginTop: "8px",
-    fontSize: "12px",
-    color: COLORS.orange,
-    backgroundColor: "#fff5f2",
-    padding: "4px 12px",
-    borderRadius: "12px",
-    display: "inline-block"
+    display: "inline-block",
   },
   orderItemRow: {
     display: "flex",
@@ -711,31 +856,31 @@ const styles = {
     alignItems: "center",
     padding: "14px 0",
     borderBottom: "1px dashed #ddd",
-    fontSize: "15px"
+    fontSize: "15px",
   },
   orderItemInfo: {
     display: "flex",
     gap: "12px",
     alignItems: "center",
-    flex: 1
+    flex: 1,
   },
   orderItemQuantity: {
     fontWeight: "600",
     color: COLORS.orange,
-    minWidth: "40px"
+    minWidth: "40px",
   },
   orderItemName: {
     color: "#555",
     display: "flex",
     alignItems: "center",
     gap: "10px",
-    flexWrap: "wrap"
+    flexWrap: "wrap",
   },
   orderItemRight: {
     display: "flex",
     flexDirection: "column",
     alignItems: "flex-end",
-    gap: "4px"
+    gap: "4px",
   },
   deliveredBadge: {
     display: "inline-flex",
@@ -746,7 +891,7 @@ const styles = {
     padding: "2px 10px",
     borderRadius: "12px",
     fontSize: "11px",
-    fontWeight: "500"
+    fontWeight: "500",
   },
   preparingBadge: {
     display: "inline-flex",
@@ -757,23 +902,15 @@ const styles = {
     padding: "2px 10px",
     borderRadius: "12px",
     fontSize: "11px",
-    fontWeight: "500"
+    fontWeight: "500",
   },
-  checkIcon: {
-    fontSize: "12px",
-    fontWeight: "bold"
-  },
-  clockIcon: {
-    fontSize: "11px"
-  },
-  deliveredTime: {
-    fontSize: "10px",
-    color: "#27ae60"
-  },
+  checkIcon: { fontSize: "12px", fontWeight: "bold" },
+  clockIcon: { fontSize: "11px" },
+  deliveredTime: { fontSize: "10px", color: "#27ae60" },
   orderItemsContainer: {
     maxHeight: "400px",
     overflowY: "auto",
-    marginBottom: "20px"
+    marginBottom: "20px",
   },
   totalSection: {
     display: "flex",
@@ -781,7 +918,7 @@ const styles = {
     alignItems: "center",
     marginTop: "25px",
     paddingTop: "20px",
-    borderTop: `2px solid ${COLORS.yellow}`
+    borderTop: `2px solid ${COLORS.yellow}`,
   },
   totalValue: { fontSize: "22px", color: COLORS.orange, fontWeight: "900" },
   statusContainer: {
@@ -790,38 +927,34 @@ const styles = {
     padding: "20px",
     marginBottom: "30px",
     boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-    border: "1px solid #f0f0f0"
+    border: "1px solid #f0f0f0",
   },
   statusHeader: {
     display: "flex",
     alignItems: "center",
-    marginBottom: "24px"
+    marginBottom: "24px",
   },
-  statusTextContainer: {
-    flex: 1
-  },
-  progressWrapper: {
-    marginTop: "16px"
-  },
+  statusTextContainer: { flex: 1 },
+  progressWrapper: { marginTop: "16px" },
   progressSteps: {
     display: "flex",
     justifyContent: "space-between",
     marginBottom: "12px",
-    padding: "0 10px"
+    padding: "0 10px",
   },
   progressStep: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     gap: "6px",
-    flex: 1
+    flex: 1,
   },
   progressDot: {
     width: "12px",
     height: "12px",
     borderRadius: "50%",
     transition: "all 0.3s ease",
-    position: "relative"
+    position: "relative",
   },
   progressDotInner: {
     position: "absolute",
@@ -831,12 +964,12 @@ const styles = {
     width: "4px",
     height: "4px",
     backgroundColor: "#fff",
-    borderRadius: "50%"
+    borderRadius: "50%",
   },
   progressLabel: {
     fontSize: "10px",
     textAlign: "center",
-    transition: "all 0.3s ease"
+    transition: "all 0.3s ease",
   },
   progressBarContainer: {
     height: "6px",
@@ -844,14 +977,14 @@ const styles = {
     borderRadius: "10px",
     overflow: "hidden",
     marginBottom: "10px",
-    position: "relative"
+    position: "relative",
   },
   progressBarFill: {
     height: "100%",
     background: `linear-gradient(90deg, ${COLORS.orange}, #ff8c42)`,
     borderRadius: "10px",
     position: "relative",
-    overflow: "hidden"
+    overflow: "hidden",
   },
   progressGlow: {
     position: "absolute",
@@ -859,37 +992,35 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
-    animation: "shimmer 2s infinite"
+    background:
+      "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
+    animation: "shimmer 2s infinite",
   },
   progressPercentage: {
     textAlign: "center",
     fontSize: "12px",
     color: COLORS.orange,
     fontWeight: "600",
-    letterSpacing: "0.5px"
+    letterSpacing: "0.5px",
   },
-  deliveryProgress: {
-    marginTop: "20px",
-    textAlign: "center"
-  },
+  deliveryProgress: { marginTop: "20px", textAlign: "center" },
   deliveryProgressText: {
     fontSize: "12px",
     color: COLORS.orange,
-    marginBottom: "12px"
+    marginBottom: "12px",
   },
   waveAnimation: {
     display: "flex",
     justifyContent: "center",
     gap: "8px",
-    marginTop: "10px"
+    marginTop: "10px",
   },
   waveDot: {
     width: "8px",
     height: "8px",
     backgroundColor: COLORS.orange,
     borderRadius: "50%",
-    animation: "wave 1.5s ease-in-out infinite"
+    animation: "wave 1.5s ease-in-out infinite",
   },
   loadingOverlay: {
     position: "fixed",
@@ -902,7 +1033,7 @@ const styles = {
     zIndex: 1000,
     display: "flex",
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
   },
   loadingCard: {
     backgroundColor: "#fff",
@@ -910,50 +1041,86 @@ const styles = {
     padding: "40px",
     textAlign: "center",
     minWidth: "280px",
-    animation: "slideUp 0.3s ease"
+    animation: "slideUp 0.3s ease",
   },
-  spinner: {
-    marginBottom: "24px",
-    display: "flex",
-    justifyContent: "center"
-  },
+  spinner: { marginBottom: "24px", display: "flex", justifyContent: "center" },
   spinnerCircle: {
     width: "50px",
     height: "50px",
     border: "4px solid #f0f0f0",
     borderTop: `4px solid ${COLORS.orange}`,
     borderRadius: "50%",
-    animation: "spin 0.8s linear infinite"
+    animation: "spin 0.8s linear infinite",
   },
   loadingTitle: {
     fontSize: "18px",
     fontWeight: "600",
     color: COLORS.textDark,
-    marginBottom: "20px"
+    marginBottom: "20px",
   },
   loadingBar: {
     height: "6px",
     backgroundColor: "#f0f0f0",
     borderRadius: "10px",
     overflow: "hidden",
-    marginBottom: "12px"
+    marginBottom: "12px",
   },
   loadingFill: {
     height: "100%",
     background: `linear-gradient(90deg, ${COLORS.orange}, #ff8c42)`,
-    transition: "width 0.3s ease"
+    transition: "width 0.3s ease",
   },
   loadingText: {
     fontSize: "14px",
     color: COLORS.orange,
-    fontWeight: "600"
+    fontWeight: "600",
   },
-  expiredContainer: { flex: 1, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" },
-  expiredCard: { background: "#fff", padding: "40px", borderRadius: "30px", textAlign: "center", boxShadow: "0 10px 40px rgba(0,0,0,0.1)", width: "100%" },
-  lockedOverlay: { flex: 1, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" },
-  lockedContent: { background: "#fff", padding: "40px", borderRadius: "30px", textAlign: "center", boxShadow: "0 10px 40px rgba(0,0,0,0.1)", width: "100%" },
-  alertOverlay: { position: "fixed", top: "20px", left: 0, right: 0, zIndex: 1000, display: "flex", justifyContent: "center" },
-  alertBox: { background: "rgba(0,0,0,0.8)", color: "#fff", padding: "10px 20px", borderRadius: "12px", fontSize: "13px" }
+  expiredContainer: {
+    flex: 1,
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: "20px",
+  },
+  expiredCard: {
+    background: "#fff",
+    padding: "40px",
+    borderRadius: "30px",
+    textAlign: "center",
+    boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
+    width: "100%",
+  },
+  lockedOverlay: {
+    flex: 1,
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: "20px",
+  },
+  lockedContent: {
+    background: "#fff",
+    padding: "40px",
+    borderRadius: "30px",
+    textAlign: "center",
+    boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
+    width: "100%",
+  },
+  alertOverlay: {
+    position: "fixed",
+    top: "20px",
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    display: "flex",
+    justifyContent: "center",
+  },
+  alertBox: {
+    background: "rgba(0,0,0,0.8)",
+    color: "#fff",
+    padding: "10px 20px",
+    borderRadius: "12px",
+    fontSize: "13px",
+  },
 };
 
 const styleSheet = document.createElement("style");

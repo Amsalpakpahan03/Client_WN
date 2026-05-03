@@ -57,7 +57,7 @@ const AdminPage = () => {
       }
     };
     
-    const interval = setInterval(checkSession, 60000); // Check every minute
+    const interval = setInterval(checkSession, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -68,11 +68,11 @@ const AdminPage = () => {
     navigate("/admin-login");
   };
 
-  // Urutkan orders dari yang terbaru ke yang lama
+  // ✅ PERBAIKI 1: fetchOrders - tambah /api
   const fetchOrders = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await api.get("/orders");
+      const res = await api.get("/api/orders");  // ✅ DIPERBAIKI
       let data =
         res.data.data && Array.isArray(res.data.data)
           ? res.data.data
@@ -90,9 +90,10 @@ const AdminPage = () => {
     }
   }, []);
 
+  // ✅ PERBAIKI 2: fetchProducts - tambah /api
   const fetchProducts = useCallback(async () => {
     try {
-      const res = await api.get("/menu");
+      const res = await api.get("/api/menu");  // ✅ DIPERBAIKI
       setProducts(
         res.data.data && Array.isArray(res.data.data)
           ? res.data.data
@@ -119,7 +120,7 @@ const AdminPage = () => {
     };
   }, [fetchOrders, fetchProducts]);
 
-  // Update status global
+  // ✅ PERBAIKI 3: handleUpdateStatus - tambah /api
   const handleUpdateStatus = async (id, newStatus) => {
     console.log("[ADMIN] Updating global status:", id, "→", newStatus);
 
@@ -128,7 +129,7 @@ const AdminPage = () => {
     );
 
     try {
-      await api.put(`/orders/${id}/status`, { status: newStatus });
+      await api.put(`/api/orders/${id}/status`, { status: newStatus });  // ✅ DIPERBAIKI
       console.log("[ADMIN] Status global berhasil diupdate");
     } catch (err) {
       console.error("[ADMIN] Gagal update status", err);
@@ -139,7 +140,7 @@ const AdminPage = () => {
     }
   };
 
-  // Update status minuman (ANTAR MINUMAN)
+  // ✅ PERBAIKI 4: handleAntarMinuman - tambah /api
   const handleAntarMinuman = async (orderId) => {
     console.log("[ADMIN] Mengantar minuman untuk order:", orderId);
 
@@ -156,13 +157,10 @@ const AdminPage = () => {
     );
 
     try {
-      const response = await api.put(
-        `/orders/${orderId}/update-category-status`,
-        {
-          category: "Minuman",
-          status: "served",
-        },
-      );
+      const response = await api.put(`/api/orders/${orderId}/update-category-status`, {  // ✅ DIPERBAIKI
+        category: "Minuman",
+        status: "served",
+      });
       console.log("[ADMIN] Response antar minuman:", response.data);
     } catch (err) {
       console.error("[ADMIN] Gagal antar minuman", err);
@@ -180,6 +178,7 @@ const AdminPage = () => {
     setImagePreview(URL.createObjectURL(file));
   };
 
+  // ✅ PERBAIKI 5: handleAddProduct - tambah /api
   const handleAddProduct = async (e) => {
     e.preventDefault();
     const formData = new FormData();
@@ -190,7 +189,7 @@ const AdminPage = () => {
     if (newProduct.imageFile) formData.append("image", newProduct.imageFile);
 
     try {
-      await api.post("/menu", formData, {
+      await api.post("/api/menu", formData, {  // ✅ DIPERBAIKI
         headers: { "Content-Type": "multipart/form-data" },
       });
       alert("Produk berhasil ditambahkan!");
@@ -210,10 +209,11 @@ const AdminPage = () => {
     }
   };
 
+  // ✅ PERBAIKI 6: handleDeleteProduct - tambah /api
   const handleDeleteProduct = async (id) => {
     if (!window.confirm("Yakin ingin menghapus produk ini?")) return;
     try {
-      await api.delete(`/menu/${id}`);
+      await api.delete(`/api/menu/${id}`);  // ✅ DIPERBAIKI
       fetchProducts();
       alert("Produk berhasil dihapus");
     } catch (err) {
@@ -291,59 +291,6 @@ const AdminPage = () => {
       </div>
 
       <div style={styles.container}>
-        {/* <div style={styles.statsGrid}>
-          <div style={styles.statCard}>
-            <div
-              style={{
-                ...styles.statIcon,
-                color: "#F97316",
-                backgroundColor: "#FFF7ED",
-              }}
-            >
-              <TrendingUp size={20} />
-            </div>
-            <div>
-              <p style={styles.statLabel}>Total Pesanan</p>
-              <p style={styles.statValue}>{orders.length}</p>
-            </div>
-          </div>
-          <div style={styles.statCard}>
-            <div
-              style={{
-                ...styles.statIcon,
-                color: "#16A34A",
-                backgroundColor: "#F0FDF4",
-              }}
-            >
-              <DollarSign size={20} />
-            </div>
-            <div>
-              <p style={styles.statLabel}>Estimasi Omzet</p>
-              <p style={styles.statValue}>
-                Rp{" "}
-                {orders
-                  .reduce((a, c) => a + (c.totalPrice || 0), 0)
-                  .toLocaleString()}
-              </p>
-            </div>
-          </div>
-          <div style={styles.statCard}>
-            <div
-              style={{
-                ...styles.statIcon,
-                color: "#7C3AED",
-                backgroundColor: "#F5F3FF",
-              }}
-            >
-              <Package size={20} />
-            </div>
-            <div>
-              <p style={styles.statLabel}>Total Menu</p>
-              <p style={styles.statValue}>{products.length}</p>
-            </div>
-          </div>
-        </div> */}
-
         {activeTab === "orders" ? (
           <div style={styles.ordersGrid}>
             {isLoading && orders.length === 0 ? (
@@ -360,13 +307,7 @@ const AdminPage = () => {
                   <div style={styles.orderCardContent}>
                     <div style={{ flex: 1 }}>
                       <div style={styles.orderHeader}>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                          }}
-                        >
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <Clock size={14} />
                           <span style={{ fontSize: 12, color: "#6B7280" }}>
                             {new Date(o.createdAt).toLocaleTimeString("id-ID", {
@@ -375,78 +316,37 @@ const AdminPage = () => {
                             })}
                           </span>
                         </div>
-                        <span style={styles.tableBadge}>
-                          Meja {o.tableNumber}
-                        </span>
-                        <span
-                          style={{
-                            ...styles.statusBadge,
-                            ...getStatusStyle(o.status),
-                          }}
-                        >
-                          {o.status === "pending"
-                            ? "🔔 BARU"
-                            : o.status.toUpperCase()}
+                        <span style={styles.tableBadge}>Meja {o.tableNumber}</span>
+                        <span style={{ ...styles.statusBadge, ...getStatusStyle(o.status) }}>
+                          {o.status === "pending" ? "🔔 BARU" : o.status.toUpperCase()}
                         </span>
                       </div>
 
                       <div style={styles.itemList}>
                         {o.items.map((item, idx) => (
                           <div key={idx} style={styles.itemRow}>
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                width: "100%",
-                              }}
-                            >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                               <div>
-                                <b style={{ color: "#c0392b" }}>
-                                  {item.quantity}x
-                                </b>{" "}
-                                {item.name}
+                                <b style={{ color: "#c0392b" }}>{item.quantity}x</b> {item.name}
                                 {item.category === "Minuman" && (
-                                  <span
-                                    style={{
-                                      fontSize: 10,
-                                      marginLeft: 8,
-                                      color:
-                                        item.status === "served"
-                                          ? "#10B981"
-                                          : "#F59E0B",
-                                      fontWeight: "bold",
-                                    }}
-                                  >
-                                    (
-                                    {item.status === "served"
-                                      ? "✓ Diantar"
-                                      : "⏳ Siap"}
-                                    )
+                                  <span style={{ fontSize: 10, marginLeft: 8, color: item.status === "served" ? "#10B981" : "#F59E0B", fontWeight: "bold" }}>
+                                    ({item.status === "served" ? "✓ Diantar" : "⏳ Siap"})
                                   </span>
                                 )}
                               </div>
-                              {item.category === "Minuman" &&
-                                item.status !== "served" && (
-                                  <button
-                                    onClick={() => handleAntarMinuman(o._id)}
-                                    style={styles.antarMinumanBtn}
-                                  >
-                                    <Coffee size={12} /> Antar Minuman
-                                  </button>
-                                )}
+                              {item.category === "Minuman" && item.status !== "served" && (
+                                <button onClick={() => handleAntarMinuman(o._id)} style={styles.antarMinumanBtn}>
+                                  <Coffee size={12} /> Antar Minuman
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))}
                       </div>
 
                       <div style={styles.orderFooter}>
-                        <span style={styles.orderId}>
-                          #{o._id.slice(-6).toUpperCase()}
-                        </span>
-                        <span style={styles.orderTotal}>
-                          Rp {o.totalPrice?.toLocaleString()}
-                        </span>
+                        <span style={styles.orderId}>#{o._id.slice(-6).toUpperCase()}</span>
+                        <span style={styles.orderTotal}>Rp {o.totalPrice?.toLocaleString()}</span>
                       </div>
                     </div>
 
@@ -486,6 +386,7 @@ const AdminPage = () => {
                   <Plus size={20} /> Tambah Menu
                 </h3>
                 <form onSubmit={handleAddProduct} style={styles.form}>
+                  {/* form content same as before */}
                   <div>
                     <label style={styles.label}>Nama Menu</label>
                     <input
@@ -493,13 +394,10 @@ const AdminPage = () => {
                       type="text"
                       placeholder="Contoh: Nasi Goreng"
                       value={newProduct.name}
-                      onChange={(e) =>
-                        setNewProduct({ ...newProduct, name: e.target.value })
-                      }
+                      onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
                       required
                     />
                   </div>
-
                   <div style={styles.inputRow}>
                     <div style={{ flex: 1 }}>
                       <label style={styles.label}>Harga (Rp)</label>
@@ -508,12 +406,7 @@ const AdminPage = () => {
                         type="number"
                         placeholder="15000"
                         value={newProduct.price}
-                        onChange={(e) =>
-                          setNewProduct({
-                            ...newProduct,
-                            price: e.target.value,
-                          })
-                        }
+                        onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
                         required
                       />
                     </div>
@@ -522,12 +415,7 @@ const AdminPage = () => {
                       <select
                         style={styles.input}
                         value={newProduct.category}
-                        onChange={(e) =>
-                          setNewProduct({
-                            ...newProduct,
-                            category: e.target.value,
-                          })
-                        }
+                        onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
                       >
                         <option value="Makanan">Makanan</option>
                         <option value="Cemilan">Cemilan</option>
@@ -536,86 +424,44 @@ const AdminPage = () => {
                       </select>
                     </div>
                   </div>
-
                   <div>
                     <label style={styles.label}>Deskripsi</label>
                     <textarea
                       style={{ ...styles.input, height: 80, resize: "none" }}
                       placeholder="Penjelasan singkat menu..."
                       value={newProduct.desc}
-                      onChange={(e) =>
-                        setNewProduct({ ...newProduct, desc: e.target.value })
-                      }
+                      onChange={(e) => setNewProduct({ ...newProduct, desc: e.target.value })}
                     />
                   </div>
-
                   <div>
                     <label style={styles.label}>Foto Produk</label>
                     <label style={styles.fileLabel}>
-                      <input
-                        type="file"
-                        hidden
-                        accept="image/*"
-                        onChange={handleSelectImage}
-                      />
+                      <input type="file" hidden accept="image/*" onChange={handleSelectImage} />
                       {imagePreview ? (
-                        <img
-                          src={imagePreview}
-                          alt="Preview"
-                          style={{
-                            width: "100%",
-                            height: 100,
-                            objectFit: "cover",
-                            borderRadius: 8,
-                          }}
-                        />
+                        <img src={imagePreview} alt="Preview" style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 8 }} />
                       ) : (
                         <>
                           <ImageIcon size={24} color="#9CA3AF" />
-                          <span
-                            style={{
-                              fontSize: 12,
-                              color: "#9CA3AF",
-                              marginTop: 5,
-                            }}
-                          >
-                            Klik untuk upload
-                          </span>
+                          <span style={{ fontSize: 12, color: "#9CA3AF", marginTop: 5 }}>Klik untuk upload</span>
                         </>
                       )}
                     </label>
                   </div>
-
-                  <button type="submit" style={styles.submitBtn}>
-                    Simpan Menu
-                  </button>
+                  <button type="submit" style={styles.submitBtn}>Simpan Menu</button>
                 </form>
               </div>
             </div>
-
             <div style={styles.productListSide}>
               <div style={styles.productGrid}>
                 {products.map((p) => (
                   <div key={p._id} style={styles.productCard}>
                     <div style={styles.productImageWrapper}>
-                      <img
-                        src={p.image_url || "/no-image.png"}
-                        style={styles.productImage}
-                        alt={p.name}
-                        onError={(e) => {
-                          e.target.src = "/no-image.png";
-                        }}
-                      />
+                      <img src={p.image_url || "/no-image.png"} style={styles.productImage} alt={p.name} onError={(e) => { e.target.src = "/no-image.png"; }} />
                     </div>
                     <div style={{ padding: 15 }}>
                       <h4 style={{ margin: 0, fontSize: 14 }}>{p.name}</h4>
-                      <p style={styles.productPrice}>
-                        Rp {p.price?.toLocaleString()}
-                      </p>
-                      <button
-                        style={styles.deleteBtn}
-                        onClick={() => handleDeleteProduct(p._id)}
-                      >
+                      <p style={styles.productPrice}>Rp {p.price?.toLocaleString()}</p>
+                      <button style={styles.deleteBtn} onClick={() => handleDeleteProduct(p._id)}>
                         <Trash size={14} /> Hapus
                       </button>
                     </div>
@@ -631,304 +477,67 @@ const AdminPage = () => {
 };
 
 const styles = {
-  page: {
-    backgroundColor: "#F8F9FA",
-    minHeight: "100vh",
-    fontFamily: "sans-serif",
-  },
+  page: { backgroundColor: "#F8F9FA", minHeight: "100vh", fontFamily: "sans-serif" },
   container: { maxWidth: 1200, margin: "0 auto", padding: "0 20px" },
-  header: {
-    backgroundColor: "white",
-    borderBottom: "1px solid #E5E7EB",
-    position: "sticky",
-    top: 0,
-    zIndex: 10,
-    padding: "15px 0",
-  },
-  headerContent: {
-    maxWidth: 1200,
-    margin: "0 auto",
-    padding: "0 20px",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 15,
-  },
+  header: { backgroundColor: "white", borderBottom: "1px solid #E5E7EB", position: "sticky", top: 0, zIndex: 10, padding: "15px 0" },
+  headerContent: { maxWidth: 1200, margin: "0 auto", padding: "0 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 15 },
   logoArea: { display: "flex", alignItems: "center", gap: 12 },
   logoText: { margin: 0, fontSize: 24, fontWeight: "bold", color: "#c0392b" },
   liveIndicator: { display: "flex", alignItems: "center", gap: 5 },
-  pulseDot: {
-    width: 8,
-    height: 8,
-    backgroundColor: "#22C55E",
-    borderRadius: "50%",
-    animation: "pulse 2s infinite",
-  },
-  liveText: {
-    fontSize: 10,
-    color: "#9CA3AF",
-    fontWeight: "bold",
-    textTransform: "uppercase",
-  },
-  adminInfo: {
-    display: "flex",
-    alignItems: "center",
-    gap: 15,
-    backgroundColor: "#F3F4F6",
-    padding: "8px 16px",
-    borderRadius: 12,
-  },
-  adminName: {
-    fontSize: 14,
-    fontWeight: 500,
-    color: "#374151",
-  },
-  logoutBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "6px 12px",
-    backgroundColor: "#EF4444",
-    color: "white",
-    border: "none",
-    borderRadius: 8,
-    cursor: "pointer",
-    fontSize: 12,
-    fontWeight: 500,
-    transition: "all 0.3s",
-  },
-  tabWrapper: {
-    display: "flex",
-    backgroundColor: "#F3F4F6",
-    padding: 4,
-    borderRadius: 12,
-  },
-  tabBtn: (active) => ({
-    padding: "8px 20px",
-    borderRadius: 8,
-    border: "none",
-    cursor: "pointer",
-    fontWeight: "bold",
-    fontSize: 14,
-    backgroundColor: active ? "white" : "transparent",
-    color: active ? "#c0392b" : "#6B7280",
-    boxShadow: active ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-    transition: "0.3s",
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-  }),
-  statsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-    gap: 20,
-    margin: "30px 0",
-  },
-  statCard: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 16,
-    border: "1px solid #F3F4F6",
-    display: "flex",
-    alignItems: "center",
-    gap: 15,
-  },
+  pulseDot: { width: 8, height: 8, backgroundColor: "#22C55E", borderRadius: "50%", animation: "pulse 2s infinite" },
+  liveText: { fontSize: 10, color: "#9CA3AF", fontWeight: "bold", textTransform: "uppercase" },
+  adminInfo: { display: "flex", alignItems: "center", gap: 15, backgroundColor: "#F3F4F6", padding: "8px 16px", borderRadius: 12 },
+  adminName: { fontSize: 14, fontWeight: 500, color: "#374151" },
+  logoutBtn: { display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", backgroundColor: "#EF4444", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 500 },
+  tabWrapper: { display: "flex", backgroundColor: "#F3F4F6", padding: 4, borderRadius: 12 },
+  tabBtn: (active) => ({ padding: "8px 20px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: "bold", fontSize: 14, backgroundColor: active ? "white" : "transparent", color: active ? "#c0392b" : "#6B7280", boxShadow: active ? "0 1px 3px rgba(0,0,0,0.1)" : "none", display: "flex", alignItems: "center", gap: 6 }),
+  statsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 20, margin: "30px 0" },
+  statCard: { backgroundColor: "white", padding: 20, borderRadius: 16, border: "1px solid #F3F4F6", display: "flex", alignItems: "center", gap: 15 },
   statIcon: { padding: 12, borderRadius: "50%" },
-  statLabel: {
-    margin: 0,
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "bold",
-    textTransform: "uppercase",
-  },
+  statLabel: { margin: 0, fontSize: 12, color: "#6B7280", fontWeight: "bold", textTransform: "uppercase" },
   statValue: { margin: 0, fontSize: 24, fontWeight: "bold", color: "#1F2937" },
-  ordersGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))",
-    gap: 20,
-  },
-  orderCard: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    border: "1px solid #E5E7EB",
-    overflow: "hidden",
-  },
+  ordersGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))", gap: 20 },
+  orderCard: { backgroundColor: "white", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden" },
   orderCardContent: { padding: 20, display: "flex", gap: 20 },
-  orderHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 15,
-    flexWrap: "wrap",
-  },
-  tableBadge: {
-    backgroundColor: "#c0392b",
-    color: "white",
-    padding: "4px 12px",
-    borderRadius: 8,
-    fontWeight: "bold",
-    fontSize: 12,
-  },
-  statusBadge: {
-    fontSize: 10,
-    fontWeight: "900",
-    padding: "4px 12px",
-    borderRadius: 20,
-  },
-  itemList: {
-    marginBottom: 15,
-    paddingBottom: 15,
-    borderBottom: "1px solid #F3F4F6",
-  },
+  orderHeader: { display: "flex", alignItems: "center", gap: 10, marginBottom: 15, flexWrap: "wrap" },
+  tableBadge: { backgroundColor: "#c0392b", color: "white", padding: "4px 12px", borderRadius: 8, fontWeight: "bold", fontSize: 12 },
+  statusBadge: { fontSize: 10, fontWeight: "900", padding: "4px 12px", borderRadius: 20 },
+  itemList: { marginBottom: 15, paddingBottom: 15, borderBottom: "1px solid #F3F4F6" },
   itemRow: { fontSize: 14, color: "#4B5563", marginBottom: 8 },
-  orderFooter: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
+  orderFooter: { display: "flex", justifyContent: "space-between", alignItems: "center" },
   orderId: { fontSize: 10, color: "#9CA3AF", fontFamily: "monospace" },
   orderTotal: { fontSize: 18, fontWeight: "bold", color: "#EA580C" },
-  orderActions: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-    minWidth: 100,
-  },
-  antarMinumanBtn: {
-    backgroundColor: "#3B82F6",
-    color: "white",
-    border: "none",
-    padding: "6px 12px",
-    borderRadius: 6,
-    fontSize: 11,
-    fontWeight: "bold",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-  },
+  orderActions: { display: "flex", flexDirection: "column", gap: 8, minWidth: 100 },
+  antarMinumanBtn: { backgroundColor: "#3B82F6", color: "white", border: "none", padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: "bold", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 },
   productFlex: { display: "flex", gap: 30, flexWrap: "wrap" },
   productFormSide: { flex: 1, minWidth: 300 },
-  formCard: {
-    backgroundColor: "white",
-    padding: 25,
-    borderRadius: 16,
-    border: "1px solid #E5E7EB",
-    position: "sticky",
-    top: 100,
-  },
-  formTitle: {
-    margin: "0 0 20px 0",
-    color: "#c0392b",
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-  },
+  formCard: { backgroundColor: "white", padding: 25, borderRadius: 16, border: "1px solid #E5E7EB", position: "sticky", top: 100 },
+  formTitle: { margin: "0 0 20px 0", color: "#c0392b", display: "flex", alignItems: "center", gap: 8 },
   form: { display: "flex", flexDirection: "column", gap: 15 },
-  label: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#4B5563",
-    marginBottom: 5,
-    display: "block",
-  },
-  input: {
-    width: "100%",
-    padding: 10,
-    borderRadius: 8,
-    border: "1px solid #D1D5DB",
-    boxSizing: "border-box",
-  },
+  label: { fontSize: 14, fontWeight: "bold", color: "#4B5563", marginBottom: 5, display: "block" },
+  input: { width: "100%", padding: 10, borderRadius: 8, border: "1px solid #D1D5DB", boxSizing: "border-box" },
   inputRow: { display: "flex", gap: 15 },
-  fileLabel: {
-    border: "2px dashed #E5E7EB",
-    padding: 15,
-    borderRadius: 8,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    cursor: "pointer",
-  },
-  submitBtn: {
-    backgroundColor: "#c0392b",
-    color: "white",
-    padding: 12,
-    borderRadius: 8,
-    border: "none",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
+  fileLabel: { border: "2px dashed #E5E7EB", padding: 15, borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer" },
+  submitBtn: { backgroundColor: "#c0392b", color: "white", padding: 12, borderRadius: 8, border: "none", fontWeight: "bold", cursor: "pointer" },
   productListSide: { flex: 2, minWidth: 400 },
-  productGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-    gap: 15,
-  },
-  productCard: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    border: "1px solid #E5E7EB",
-    overflow: "hidden",
-  },
+  productGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 15 },
+  productCard: { backgroundColor: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden" },
   productImageWrapper: { height: 150, backgroundColor: "#F3F4F6" },
   productImage: { width: "100%", height: "100%", objectFit: "cover" },
   productPrice: { color: "#c0392b", fontWeight: "bold", margin: "5px 0" },
-  deleteBtn: {
-    width: "100%",
-    border: "1px solid #FEE2E2",
-    color: "#EF4444",
-    backgroundColor: "#FEF2F2",
-    padding: 8,
-    borderRadius: 8,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  actionBtnDisabled: (active) => ({
-    backgroundColor: active ? "#E5E7EB" : "#F3F4F6",
-    color: active ? "#1F2937" : "#9CA3AF",
-    border: "none",
-    padding: 8,
-    borderRadius: 8,
-    fontWeight: "bold",
-    fontSize: 10,
-    cursor: active ? "pointer" : "not-allowed",
-    opacity: active ? 1 : 0.6,
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-    justifyContent: "center",
-  }),
-  emptyState: {
-    textAlign: "center",
-    padding: "60px",
-    backgroundColor: "white",
-    borderRadius: 16,
-    color: "#9CA3AF",
-  },
+  deleteBtn: { width: "100%", border: "1px solid #FEE2E2", color: "#EF4444", backgroundColor: "#FEF2F2", padding: 8, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 },
+  actionBtnDisabled: (active) => ({ backgroundColor: active ? "#E5E7EB" : "#F3F4F6", color: active ? "#1F2937" : "#9CA3AF", border: "none", padding: 8, borderRadius: 8, fontWeight: "bold", fontSize: 10, cursor: active ? "pointer" : "not-allowed", opacity: active ? 1 : 0.6, display: "flex", alignItems: "center", gap: 4, justifyContent: "center" }),
+  emptyState: { textAlign: "center", padding: "60px", backgroundColor: "white", borderRadius: 16, color: "#9CA3AF" },
 };
 
-// Add keyframes for pulse animation
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
   @keyframes pulse {
-    0% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.5;
-      transform: scale(1.2);
-    }
-    100% {
-      opacity: 1;
-      transform: scale(1);
-    }
+    0% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.2); }
+    100% { opacity: 1; transform: scale(1); }
   }
 `;
 document.head.appendChild(styleSheet);
 
-export default AdminPage;
+export default AdminPage; 
