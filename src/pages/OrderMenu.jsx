@@ -593,7 +593,6 @@ function OrderMenu() {
                     <div style={styles.progressGlow} />
                   </div>
                 </div>
-                {/* Persentase dihapus dari sini */}
               </div>
             </div>
 
@@ -670,7 +669,7 @@ function OrderMenu() {
           </div>
         ) : (
           <>
-            {/* ================= TOMBOL NAVIGASI KATEGORI ================= */}
+            {/* TOMBOL NAVIGASI KATEGORI */}
             <div style={styles.categoryNav}>
               {CATEGORIES.map((cat) => {
                 const hasItems = menuByCategory.find(c => c.name === cat)?.items.length > 0;
@@ -691,7 +690,7 @@ function OrderMenu() {
               })}
             </div>
 
-            {/* ================= MENU PER KATEGORI ================= */}
+            {/* MENU PER KATEGORI */}
             <div style={{ padding: "0 20px 100px 20px" }}>
               {menuByCategory.map(
                 (cat) =>
@@ -734,7 +733,6 @@ function OrderMenu() {
                 }}
               />
             </div>
-            {/* Persentase di loading animation juga dihapus */}
           </div>
         </div>
       )}
@@ -765,25 +763,37 @@ function OrderMenu() {
   );
 }
 
+// ================= MENU ITEM COMPONENT (DIPERBAIKI DENGAN TIMESTAMP) =================
 const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
-  const ASSET_URL = process.env.REACT_APP_ASSET_URL || "http://localhost:5000";
-
+  const ASSET_URL = "https://ffba1d81-e43e-4366-a64e-7c28def97c1f-00-1lrc6qdsg3bwb.pike.replit.dev";
+  
+  // Timestamp untuk force refresh gambar (menghindari cache HP)
+  const timestamp = new Date().getTime();
+  
   if (!item) return null;
 
   const getImageUrl = () => {
-    if (!item.image_url) return `${ASSET_URL}/uploads/no-image.png`;
-    if (item.image_url.startsWith("http")) return item.image_url;
-    return `${ASSET_URL}/uploads/${item.image_url}`;
+    if (!item.image_url) {
+      return `${ASSET_URL}/uploads/no-image.png?t=${timestamp}`;
+    }
+    if (item.image_url.startsWith("http")) {
+      // Hapus timestamp lama jika ada
+      const baseUrl = item.image_url.split('?')[0];
+      return `${baseUrl}?t=${timestamp}`;
+    }
+    return `${ASSET_URL}/uploads/${item.image_url}?t=${timestamp}`;
   };
 
   return (
     <div style={styles.menuCard}>
       <img
+        key={`${item._id}-${timestamp}`}
         src={getImageUrl()}
         alt={item.name || "Menu item"}
         style={styles.menuImage}
+        loading="eager"
         onError={(e) => {
-          e.target.src = `${ASSET_URL}/uploads/no-image.png`;
+          e.target.src = `${ASSET_URL}/uploads/no-image.png?t=${timestamp}`;
         }}
       />
       <div style={styles.menuInfo}>
@@ -863,20 +873,20 @@ const styles = {
     minHeight: "600px",
     boxShadow: "0 -10px 20px rgba(0,0,0,0.05)",
   },
-  // ================= STYLE NAVIGASI KATEGORI =================
-categoryNav: {
-  display: "flex",
-  justifyContent: "space-around",
-  padding: "0 16px",
-  marginBottom: "20px",
-  gap: "10px",
-  position: "sticky",
-  top: 0,
-  backgroundColor: COLORS.white,
-  zIndex: 10,
-  paddingTop: "10px",
-  paddingBottom: "10px",
-},
+  // STYLE NAVIGASI KATEGORI
+  categoryNav: {
+    display: "flex",
+    justifyContent: "space-around",
+    padding: "0 16px",
+    marginBottom: "20px",
+    gap: "10px",
+    position: "sticky",
+    top: 0,
+    backgroundColor: COLORS.white,
+    zIndex: 10,
+    paddingTop: "10px",
+    paddingBottom: "10px",
+  },
   navButton: {
     flex: 1,
     padding: "10px 0",
@@ -888,7 +898,6 @@ categoryNav: {
     transition: "all 0.2s ease",
     textAlign: "center",
   },
-  // ================= STYLE YANG SUDAH ADA (TIDAK DIUBAH) =================
   categoryHeading: {
     borderLeft: `5px solid ${COLORS.orange}`,
     paddingLeft: "15px",
