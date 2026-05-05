@@ -168,10 +168,7 @@ const AdminPage = () => {
 
     try {
       await api.put(`/api/orders/${id}/status`, { status: newStatus });
-      showAlert(
-        "success",
-        `${newStatus.toUpperCase()}`,
-      );
+      showAlert("success", `${newStatus.toUpperCase()}`);
     } catch (err) {
       showAlert(
         "error",
@@ -1407,13 +1404,10 @@ const styles = {
     transition: "all 0.2s",
   },
 
-  productFlex: { display: "flex", gap: 20, flexDirection: "column" },
-  productFormSide: { width: "100%" },
-  formCard: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 16,
-    border: "1px solid #E5E7EB",
+  productFlex: {
+    display: "flex",
+    flexDirection: "column", // ← column agar form di atas, menu di bawah
+    gap: 30,
   },
   formTitle: {
     margin: "0 0 20px 0",
@@ -1512,9 +1506,10 @@ const styles = {
   },
 
   productListSide: { width: "100%" },
+  
   productGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", // ← grid ke samping
     gap: 20,
   },
   productCard: {
