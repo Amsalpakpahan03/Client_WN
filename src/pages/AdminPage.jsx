@@ -19,6 +19,8 @@ import {
   X,
   AlertTriangle,
   Menu,
+  Gift,
+  CupSoda,
 } from "lucide-react";
 
 const AdminPage = () => {
@@ -192,7 +194,7 @@ const AdminPage = () => {
 
   const hasUndeliveredDrinks = (order) => {
     return order.items.some(
-      (item) => item.category === "Minuman" && item.status !== "served"
+      (item) => item.category === "Minuman" && item.status !== "served" && !item.isIncludedInPackage
     );
   };
 
@@ -443,7 +445,6 @@ const AdminPage = () => {
                             </span>
                           </div>
                           
-                          {/* NOMOR MEJA DIPERBESAR DAN LEBIH MENONJOL */}
                           <div style={styles.tableNumberWrapper}>
                             <span style={styles.tableNumberLabel}>Meja</span>
                             <span style={styles.tableNumberValue}>{o.tableNumber}</span>
@@ -467,6 +468,8 @@ const AdminPage = () => {
                                   borderBottom: `2px solid ${categoryStyle.border}`,
                                 }}>
                                   <span style={{ ...styles.categoryTitle, color: categoryStyle.color }}>
+                                    {category === "Paket" && <Gift size={14} style={{ marginRight: 6 }} />}
+                                    {category === "Minuman" && <Coffee size={14} style={{ marginRight: 6 }} />}
                                     {category}
                                   </span>
                                   <span style={{
@@ -479,7 +482,11 @@ const AdminPage = () => {
                                 
                                 <div style={styles.categoryItems}>
                                   {items.map((item, idx) => (
-                                    <div key={idx} style={styles.categoryItemRow}>
+                                    <div key={idx} style={{
+                                      ...styles.categoryItemRow,
+                                      backgroundColor: item.isIncludedInPackage ? "#FEFCE8" : "transparent",
+                                      borderLeft: item.isIncludedInPackage ? `3px solid ${categoryStyle.color}` : "none",
+                                    }}>
                                       <div style={styles.categoryItemInfo}>
                                         <span style={styles.categoryItemQuantity}>
                                           {item.quantity}x
@@ -488,7 +495,7 @@ const AdminPage = () => {
                                           {item.name}
                                           {item.isIncludedInPackage && (
                                             <span style={styles.includedBadge}>
-                                              (termasuk paket {item.parentPackageName})
+                                              🎁 GRATIS DARI PAKET {item.parentPackageName}
                                             </span>
                                           )}
                                         </span>
@@ -504,7 +511,7 @@ const AdminPage = () => {
                                       </div>
                                       <div style={styles.categoryItemPrice}>
                                         {item.price === 0 ? (
-                                          <span style={{ color: "#10B981", fontSize: "11px" }}>GRATIS</span>
+                                          <span style={styles.freeBadge}>GRATIS</span>
                                         ) : (
                                           `Rp ${(item.price * item.quantity).toLocaleString()}`
                                         )}
@@ -604,7 +611,6 @@ const AdminPage = () => {
                     </div>
                   </div>
                   
-                  {/* OPTION INCLUDE MINUMAN UNTUK PAKET */}
                   {newProduct.category === "Paket" && (
                     <div style={styles.checkboxGroup}>
                       <label style={styles.checkboxLabel}>
@@ -692,7 +698,9 @@ const AdminPage = () => {
                       <h4 style={{ margin: 0, fontSize: 14 }}>{p.name}</h4>
                       <p style={styles.productPrice}>Rp {p.price?.toLocaleString()}</p>
                       {p.category === "Paket" && p.includesDrinks && (
-                        <p style={{ fontSize: 10, color: "#10B981", margin: "4px 0" }}>✓ Include minuman</p>
+                        <p style={{ fontSize: 10, color: "#10B981", margin: "4px 0" }}>
+                          ✓ Include minuman
+                        </p>
                       )}
                       <button style={styles.deleteBtn} onClick={() => openDeleteModal(p._id, p.name)}>
                         <Trash size={14} /> Hapus
@@ -855,13 +863,12 @@ const styles = {
     width: "100%",
   }),
   
-  ordersGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 20 },
+  ordersGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))", gap: 20 },
   orderCard: { backgroundColor: "white", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden" },
   orderCardContent: { padding: 16, display: "flex", flexDirection: "column", gap: 16 },
   
   orderHeader: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" },
   
-  // STYLE NOMOR MEJA YANG DIPERBESAR
   tableNumberWrapper: {
     display: "flex",
     alignItems: "center",
@@ -903,7 +910,7 @@ const styles = {
     fontWeight: "bold",
     fontSize: "13px",
   },
-  categoryTitle: { fontWeight: "bold", fontSize: "14px" },
+  categoryTitle: { fontWeight: "bold", fontSize: "14px", display: "flex", alignItems: "center" },
   categoryCount: { 
     padding: "2px 8px", 
     borderRadius: "20px", 
@@ -916,13 +923,24 @@ const styles = {
     display: "flex", 
     justifyContent: "space-between", 
     alignItems: "center", 
-    padding: "8px 0",
-    borderBottom: "1px solid #F3F4F6",
+    padding: "10px 8px",
+    marginBottom: "4px",
+    borderRadius: "8px",
+    transition: "all 0.2s",
   },
   categoryItemInfo: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", flex: 1 },
   categoryItemQuantity: { fontWeight: "bold", color: "#c0392b", minWidth: "35px", fontSize: "13px" },
   categoryItemName: { color: "#374151", fontSize: "13px", flex: 1 },
-  includedBadge: { fontSize: "10px", color: "#10B981", marginLeft: "6px", fontStyle: "italic" },
+  includedBadge: { 
+    fontSize: "10px", 
+    color: "#D97706", 
+    marginLeft: "8px", 
+    fontWeight: "bold",
+    backgroundColor: "#FEF3C7",
+    padding: "2px 8px",
+    borderRadius: "12px",
+    display: "inline-block",
+  },
   itemStatusBadge: { 
     padding: "2px 8px", 
     borderRadius: "12px", 
@@ -930,6 +948,15 @@ const styles = {
     fontWeight: "bold",
   },
   categoryItemPrice: { fontWeight: "bold", color: "#EA580C", fontSize: "13px", minWidth: "90px", textAlign: "right" },
+  freeBadge: {
+    fontSize: "11px",
+    fontWeight: "bold",
+    color: "#10B981",
+    backgroundColor: "#D1FAE5",
+    padding: "2px 8px",
+    borderRadius: "12px",
+    display: "inline-block",
+  },
   
   orderFooter: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 12, borderTop: "1px solid #E5E7EB" },
   orderId: { fontSize: 10, color: "#9CA3AF", fontFamily: "monospace" },
@@ -972,7 +999,6 @@ const styles = {
     transition: "all 0.2s",
   },
   
-  // Product form styles
   productFlex: { display: "flex", gap: 20, flexDirection: "column" },
   productFormSide: { width: "100%" },
   formCard: { backgroundColor: "white", padding: 20, borderRadius: 16, border: "1px solid #E5E7EB" },
