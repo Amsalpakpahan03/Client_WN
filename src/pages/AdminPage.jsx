@@ -19,10 +19,6 @@ import {
   X,
   AlertTriangle,
   Menu,
-  Pizza,
-  Beer,
-  Cookie,
-  Gift,
 } from "lucide-react";
 
 const AdminPage = () => {
@@ -42,21 +38,18 @@ const AdminPage = () => {
   const [imagePreview, setImagePreview] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // State untuk alert notifications
   const [alert, setAlert] = useState({
     show: false,
     type: "",
     message: "",
   });
 
-  // State untuk modal konfirmasi delete
   const [deleteModal, setDeleteModal] = useState({
     isOpen: false,
     productId: null,
     productName: "",
   });
 
-  // Function to show alert
   const showAlert = (type, message) => {
     setAlert({
       show: true,
@@ -69,7 +62,6 @@ const AdminPage = () => {
     }, 3000);
   };
 
-  // Check authentication on mount
   useEffect(() => {
     const isAuth = sessionStorage.getItem("admin_auth") === "true";
     const username = sessionStorage.getItem("admin_username");
@@ -82,7 +74,6 @@ const AdminPage = () => {
     setAdminName(username || "Admin");
   }, [navigate]);
 
-  // Auto logout if session expired (8 hours)
   useEffect(() => {
     const checkSession = () => {
       const loginTime = sessionStorage.getItem("admin_login_time");
@@ -106,10 +97,7 @@ const AdminPage = () => {
     setIsLoading(true);
     try {
       const res = await api.get("/api/orders");
-      let data =
-        res.data.data && Array.isArray(res.data.data)
-          ? res.data.data
-          : res.data;
+      let data = res.data.data && Array.isArray(res.data.data) ? res.data.data : res.data;
       data = data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       setOrders(data);
     } catch (err) {
@@ -125,11 +113,7 @@ const AdminPage = () => {
   const fetchProducts = useCallback(async () => {
     try {
       const res = await api.get("/api/menu");
-      setProducts(
-        res.data.data && Array.isArray(res.data.data)
-          ? res.data.data
-          : res.data,
-      );
+      setProducts(res.data.data && Array.isArray(res.data.data) ? res.data.data : res.data);
     } catch (err) {
       console.error("[ADMIN] Gagal mengambil data menu:", err);
       if (err.response?.status === 401) {
@@ -165,7 +149,6 @@ const AdminPage = () => {
     }
   };
 
-  // Fungsi untuk antar minuman
   const handleAntarAllMinuman = async (orderId) => {
     try {
       await api.put(`/api/orders/${orderId}/update-category-status`, {
@@ -192,14 +175,12 @@ const AdminPage = () => {
     }
   };
 
-  // Cek apakah order memiliki minuman yang belum diantar
   const hasUndeliveredDrinks = (order) => {
     return order.items.some(
       (item) => item.category === "Minuman" && item.status !== "served"
     );
   };
 
-  // Fungsi untuk mengelompokkan item berdasarkan kategori
   const groupItemsByCategory = (items) => {
     const categories = ["Makanan", "Minuman", "Cemilan", "Paket"];
     const grouped = {};
@@ -208,29 +189,11 @@ const AdminPage = () => {
       grouped[cat] = items.filter(item => item.category === cat);
     });
     
-    // Hanya return kategori yang memiliki item
     return Object.fromEntries(
       Object.entries(grouped).filter(([_, items]) => items.length > 0)
     );
   };
 
-  // Dapatkan icon berdasarkan kategori
-  const getCategoryIcon = (category) => {
-    switch (category) {
-      case "Makanan":
-        return <Utensils size={14} />;
-      case "Minuman":
-        return <Coffee size={14} />;
-      case "Cemilan":
-        return <Cookie size={14} />;
-      case "Paket":
-        return <Gift size={14} />;
-      default:
-        return <Pizza size={14} />;
-    }
-  };
-
-  // Dapatkan warna background berdasarkan kategori
   const getCategoryColor = (category) => {
     switch (category) {
       case "Makanan":
@@ -249,37 +212,84 @@ const AdminPage = () => {
   const getStatusStyle = (status) => {
     switch (status) {
       case "pending":
-        return {
-          backgroundColor: "#FFFBEB",
-          color: "#B45309",
-          border: "1px solid #FDE68A",
-        };
+        return { backgroundColor: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A" };
       case "cooking":
-        return {
-          backgroundColor: "#EFF6FF",
-          color: "#1E40AF",
-          border: "1px solid #BFDBFE",
-        };
+        return { backgroundColor: "#EFF6FF", color: "#1E40AF", border: "1px solid #BFDBFE" };
       case "served":
-        return {
-          backgroundColor: "#ECFDF5",
-          color: "#065F46",
-          border: "1px solid #A7F3D0",
-        };
+        return { backgroundColor: "#ECFDF5", color: "#065F46", border: "1px solid #A7F3D0" };
       case "paid":
-        return {
-          backgroundColor: "#F1F5F9",
-          color: "#475569",
-          border: "1px solid #E2E8F0",
-        };
+        return { backgroundColor: "#F1F5F9", color: "#475569", border: "1px solid #E2E8F0" };
       default:
         return { backgroundColor: "#F3F4F6", color: "#374151" };
     }
   };
 
+  const handleSelectImage = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setNewProduct({ ...newProduct, imageFile: file });
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const handleAddProduct = async (e) => {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append("name", newProduct.name);
+    formData.append("price", newProduct.price);
+    formData.append("description", newProduct.desc);
+    formData.append("category", newProduct.category);
+    if (newProduct.imageFile) formData.append("image", newProduct.imageFile);
+
+    try {
+      await api.post("/api/menu", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      showAlert("success", "✅ Menu berhasil ditambahkan!");
+      setNewProduct({
+        name: "",
+        price: "",
+        desc: "",
+        category: "Makanan",
+        imageFile: null,
+      });
+      setImagePreview(null);
+      fetchProducts();
+    } catch (err) {
+      showAlert("error", `❌ Gagal menambah menu: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
+  const openDeleteModal = (id, name) => {
+    setDeleteModal({
+      isOpen: true,
+      productId: id,
+      productName: name,
+    });
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModal({
+      isOpen: false,
+      productId: null,
+      productName: "",
+    });
+  };
+
+  const confirmDeleteProduct = async () => {
+    const { productId, productName } = deleteModal;
+    try {
+      await api.delete(`/api/menu/${productId}`);
+      fetchProducts();
+      showAlert("success", `✅ Menu "${productName}" berhasil dihapus!`);
+      closeDeleteModal();
+    } catch (err) {
+      showAlert("error", `❌ Gagal menghapus menu: ${err.response?.data?.message || err.message}`);
+      closeDeleteModal();
+    }
+  };
+
   return (
     <div style={styles.page}>
-      {/* Alert Notification */}
       {alert.show && (
         <div style={styles.alertContainer}>
           <div style={styles.alert(alert.type)}>
@@ -301,7 +311,6 @@ const AdminPage = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {deleteModal.isOpen && (
         <div style={styles.modalOverlay} onClick={closeDeleteModal}>
           <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -334,7 +343,6 @@ const AdminPage = () => {
         </div>
       )}
 
-      {/* Header */}
       <div style={styles.header}>
         <div style={styles.headerContent}>
           <button onClick={handleLogout} style={styles.mobileLogoutBtn}>
@@ -351,24 +359,15 @@ const AdminPage = () => {
             </div>
           </div>
           
-          <button 
-            style={styles.mobileMenuBtn} 
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
+          <button style={styles.mobileMenuBtn} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             <Menu size={24} />
           </button>
 
           <div style={styles.tabWrapperDesktop}>
-            <button
-              onClick={() => setActiveTab("orders")}
-              style={styles.tabBtn(activeTab === "orders")}
-            >
+            <button onClick={() => setActiveTab("orders")} style={styles.tabBtn(activeTab === "orders")}>
               <ClipboardList size={18} /> Pesanan
             </button>
-            <button
-              onClick={() => setActiveTab("products")}
-              style={styles.tabBtn(activeTab === "products")}
-            >
+            <button onClick={() => setActiveTab("products")} style={styles.tabBtn(activeTab === "products")}>
               <Boxes size={18} /> Menu
             </button>
             <button onClick={handleLogout} style={styles.desktopLogoutBtn}>
@@ -378,25 +377,12 @@ const AdminPage = () => {
         </div>
       </div>
 
-      {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div style={styles.mobileMenu}>
-          <button
-            onClick={() => {
-              setActiveTab("orders");
-              setMobileMenuOpen(false);
-            }}
-            style={styles.mobileTabBtn(activeTab === "orders")}
-          >
+          <button onClick={() => { setActiveTab("orders"); setMobileMenuOpen(false); }} style={styles.mobileTabBtn(activeTab === "orders")}>
             <ClipboardList size={20} /> Pesanan
           </button>
-          <button
-            onClick={() => {
-              setActiveTab("products");
-              setMobileMenuOpen(false);
-            }}
-            style={styles.mobileTabBtn(activeTab === "products")}
-          >
+          <button onClick={() => { setActiveTab("products"); setMobileMenuOpen(false); }} style={styles.mobileTabBtn(activeTab === "products")}>
             <Boxes size={20} /> Menu
           </button>
         </div>
@@ -422,7 +408,6 @@ const AdminPage = () => {
                   <div key={o._id} style={styles.orderCard}>
                     <div style={styles.orderCardContent}>
                       <div style={{ flex: 1 }}>
-                        {/* Header Order */}
                         <div style={styles.orderHeader}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                             <Clock size={14} />
@@ -439,13 +424,10 @@ const AdminPage = () => {
                           </span>
                         </div>
 
-                        {/* Items Grouped by Category */}
                         <div style={styles.categoriesContainer}>
                           {categories.map((category) => {
                             const items = groupedItems[category];
                             const categoryStyle = getCategoryColor(category);
-                            const hasUndeliveredDrinksInCategory = category === "Minuman" && 
-                              items.some(item => item.status !== "served");
                             
                             return (
                               <div key={category} style={styles.categorySection}>
@@ -454,7 +436,6 @@ const AdminPage = () => {
                                   backgroundColor: categoryStyle.bg,
                                   borderBottom: `2px solid ${categoryStyle.border}`,
                                 }}>
-                                  {getCategoryIcon(category)}
                                   <span style={{ ...styles.categoryTitle, color: categoryStyle.color }}>
                                     {category}
                                   </span>
@@ -497,24 +478,18 @@ const AdminPage = () => {
                           })}
                         </div>
 
-                        {/* Tombol Antar Semua Minuman */}
                         {hasUndeliveredDrinks(o) && o.status !== "served" && o.status !== "paid" && (
-                          <button 
-                            onClick={() => handleAntarAllMinuman(o._id)} 
-                            style={styles.antarAllMinumanBtn}
-                          >
+                          <button onClick={() => handleAntarAllMinuman(o._id)} style={styles.antarAllMinumanBtn}>
                             <Coffee size={18} /> Antar Semua Minuman
                           </button>
                         )}
 
-                        {/* Footer Order */}
                         <div style={styles.orderFooter}>
                           <span style={styles.orderId}>#{o._id.slice(-6).toUpperCase()}</span>
                           <span style={styles.orderTotal}>Rp {o.totalPrice?.toLocaleString()}</span>
                         </div>
                       </div>
 
-                      {/* Action Buttons */}
                       <div style={styles.orderActions}>
                         <button
                           disabled={o.status !== "pending"}
@@ -626,10 +601,7 @@ const AdminPage = () => {
                     <div style={{ padding: 15 }}>
                       <h4 style={{ margin: 0, fontSize: 14 }}>{p.name}</h4>
                       <p style={styles.productPrice}>Rp {p.price?.toLocaleString()}</p>
-                      <button 
-                        style={styles.deleteBtn} 
-                        onClick={() => openDeleteModal(p._id, p.name)}
-                      >
+                      <button style={styles.deleteBtn} onClick={() => openDeleteModal(p._id, p.name)}>
                         <Trash size={14} /> Hapus
                       </button>
                     </div>
@@ -797,7 +769,6 @@ const styles = {
   tableBadge: { backgroundColor: "#c0392b", color: "white", padding: "4px 12px", borderRadius: 8, fontWeight: "bold", fontSize: 12 },
   statusBadge: { fontSize: 10, fontWeight: "900", padding: "4px 12px", borderRadius: 20 },
   
-  // Category Styles
   categoriesContainer: { display: "flex", flexDirection: "column", gap: 16, marginBottom: 16 },
   categorySection: { 
     border: "1px solid #E5E7EB", 
@@ -808,12 +779,12 @@ const styles = {
   categoryHeader: { 
     display: "flex", 
     alignItems: "center", 
-    gap: 8, 
+    justifyContent: "space-between",
     padding: "10px 12px",
     fontWeight: "bold",
     fontSize: "13px",
   },
-  categoryTitle: { flex: 1, fontWeight: "bold", fontSize: "14px" },
+  categoryTitle: { fontWeight: "bold", fontSize: "14px" },
   categoryCount: { 
     padding: "2px 8px", 
     borderRadius: "20px", 
@@ -901,7 +872,6 @@ const styles = {
   emptyState: { textAlign: "center", padding: "60px", backgroundColor: "white", borderRadius: 16, color: "#9CA3AF" },
 };
 
-// CSS Animations
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
   @keyframes pulse {
@@ -923,7 +893,6 @@ styleSheet.textContent = `
     transform: translateY(0);
   }
   
-  /* Mobile Responsive */
   @media (max-width: 768px) {
     .mobileLogoutBtn, .mobileMenuBtn {
       display: flex !important;
@@ -946,19 +915,5 @@ styleSheet.textContent = `
   }
 `;
 document.head.appendChild(styleSheet);
-
-// Fix untuk function yang belum didefinisikan
-const openDeleteModal = (id, name) => {
-  // This will be called from the component
-  window.dispatchEvent(new CustomEvent('openDeleteModal', { detail: { id, name } }));
-};
-
-const closeDeleteModal = () => {
-  window.dispatchEvent(new CustomEvent('closeDeleteModal'));
-};
-
-const confirmDeleteProduct = async () => {
-  window.dispatchEvent(new CustomEvent('confirmDeleteProduct'));
-};
 
 export default AdminPage;
