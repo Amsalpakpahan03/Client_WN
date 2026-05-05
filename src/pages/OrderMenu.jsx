@@ -42,7 +42,7 @@ function OrderMenu() {
   const [deliveredItems, setDeliveredItems] = useState({});
   const [activeCategory, setActiveCategory] = useState("Paket");
 
-  // Refs untuk scroll ke kategori
+  // Ref untuk scroll ke kategori
   const categoryRefs = useRef({});
 
   const clientId = useMemo(() => {
@@ -361,6 +361,7 @@ function OrderMenu() {
       await createOrder({ tableNumber, items, totalPrice, token });
       setCart({});
       
+      // Clear cart from localStorage after successful order
       const savedCartKey = `cart_${tableNumber}`;
       localStorage.removeItem(savedCartKey);
 
@@ -379,7 +380,7 @@ function OrderMenu() {
     }
   };
 
-  // Scroll ke kategori tertentu
+  // Fungsi scroll ke kategori
   const scrollToCategory = (category) => {
     setActiveCategory(category);
     const ref = categoryRefs.current[category];
@@ -592,6 +593,7 @@ function OrderMenu() {
                     <div style={styles.progressGlow} />
                   </div>
                 </div>
+                {/* Persentase dihapus dari sini */}
               </div>
             </div>
 
@@ -668,20 +670,19 @@ function OrderMenu() {
           </div>
         ) : (
           <>
-            {/* TAB NAVIGATOR KATEGORI - SEPERTI GAMBAR */}
-            <div style={styles.categoryTabs}>
+            {/* ================= TOMBOL NAVIGASI KATEGORI ================= */}
+            <div style={styles.categoryNav}>
               {CATEGORIES.map((cat) => {
                 const hasItems = menuByCategory.find(c => c.name === cat)?.items.length > 0;
+                if (!hasItems) return null;
                 return (
                   <button
                     key={cat}
                     onClick={() => scrollToCategory(cat)}
                     style={{
-                      ...styles.categoryTab,
-                      backgroundColor: activeCategory === cat ? COLORS.orange : "transparent",
-                      color: activeCategory === cat ? "white" : COLORS.textDark,
-                      borderBottom: activeCategory === cat ? `2px solid ${COLORS.orange}` : "2px solid transparent",
-                      opacity: hasItems ? 1 : 0.5,
+                      ...styles.navButton,
+                      backgroundColor: activeCategory === cat ? COLORS.orange : "#f5f5f5",
+                      color: activeCategory === cat ? "#fff" : COLORS.textDark,
                     }}
                   >
                     {cat}
@@ -690,7 +691,7 @@ function OrderMenu() {
               })}
             </div>
 
-            {/* MENU PER KATEGORI */}
+            {/* ================= MENU PER KATEGORI ================= */}
             <div style={{ padding: "0 20px 100px 20px" }}>
               {menuByCategory.map(
                 (cat) =>
@@ -698,18 +699,9 @@ function OrderMenu() {
                     <div
                       key={cat.name}
                       ref={(el) => (categoryRefs.current[cat.name] = el)}
-                      style={{ marginBottom: "30px" }}
+                      style={{ marginBottom: "25px" }}
                     >
-                      <div style={styles.categoryHeaderWrapper}>
-                        <div style={styles.categoryIcon}>
-                          {cat.name === "Paket" && "📦"}
-                          {cat.name === "Makanan" && "🍽️"}
-                          {cat.name === "Minuman" && "🥤"}
-                          {cat.name === "Cemilan" && "🍪"}
-                        </div>
-                        <h3 style={styles.categoryHeading}>{cat.name}</h3>
-                        <div style={styles.categoryLine} />
-                      </div>
+                      <h3 style={styles.categoryHeading}>{cat.name}</h3>
                       {cat.items.map((item) => (
                         <MenuItem
                           key={item._id}
@@ -742,6 +734,7 @@ function OrderMenu() {
                 }}
               />
             </div>
+            {/* Persentase di loading animation juga dihapus */}
           </div>
         </div>
       )}
@@ -866,58 +859,38 @@ const styles = {
     borderTopLeftRadius: "35px",
     borderTopRightRadius: "35px",
     marginTop: "-60px",
-    paddingTop: "20px",
+    paddingTop: "35px",
     minHeight: "600px",
     boxShadow: "0 -10px 20px rgba(0,0,0,0.05)",
   },
-  // ================= TAB NAVIGATOR STYLES =================
-  categoryTabs: {
+  // ================= STYLE NAVIGASI KATEGORI =================
+  categoryNav: {
     display: "flex",
     justifyContent: "space-around",
-    backgroundColor: "white",
-    padding: "10px 16px",
-    borderBottom: "1px solid #f0f0f0",
-    position: "sticky",
-    top: 0,
-    zIndex: 10,
-    backgroundColor: "white",
+    padding: "0 16px",
+    marginBottom: "20px",
+    gap: "10px",
   },
-  categoryTab: {
+  navButton: {
     flex: 1,
-    textAlign: "center",
     padding: "10px 0",
-    fontSize: "15px",
-    fontWeight: "600",
+    borderRadius: "25px",
     border: "none",
-    background: "transparent",
+    fontSize: "14px",
+    fontWeight: "600",
     cursor: "pointer",
     transition: "all 0.2s ease",
-    letterSpacing: "0.5px",
+    textAlign: "center",
   },
-  // ================= CATEGORY HEADER STYLES =================
-  categoryHeaderWrapper: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    marginBottom: "15px",
-    marginTop: "10px",
-  },
-  categoryIcon: {
-    fontSize: "22px",
-  },
+  // ================= STYLE YANG SUDAH ADA (TIDAK DIUBAH) =================
   categoryHeading: {
+    borderLeft: `5px solid ${COLORS.orange}`,
+    paddingLeft: "15px",
     color: COLORS.orange,
     fontSize: "18px",
     fontWeight: "bold",
-    margin: 0,
+    marginBottom: "18px",
   },
-  categoryLine: {
-    flex: 1,
-    height: "2px",
-    backgroundColor: "#f0f0f0",
-    borderRadius: "2px",
-  },
-  // ================= MENU CARD STYLES =================
   menuCard: {
     display: "flex",
     alignItems: "center",
