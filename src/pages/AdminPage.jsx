@@ -34,9 +34,12 @@ const AdminPage = () => {
     desc: "",
     category: "Makanan",
     imageFile: null,
+    includesDrinks: false,
+    includedDrinkIds: [],
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [availableDrinks, setAvailableDrinks] = useState([]);
   
   const [alert, setAlert] = useState({
     show: false,
@@ -122,9 +125,21 @@ const AdminPage = () => {
     }
   }, []);
 
+  const fetchDrinks = useCallback(async () => {
+    try {
+      const res = await api.get("/api/menu");
+      let allMenus = res.data.data && Array.isArray(res.data.data) ? res.data.data : res.data;
+      const drinks = allMenus.filter(menu => menu.category === "Minuman");
+      setAvailableDrinks(drinks);
+    } catch (err) {
+      console.error("Gagal mengambil data minuman:", err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchOrders();
     fetchProducts();
+    fetchDrinks();
 
     socket.on("newOrder", fetchOrders);
     socket.on("orderStatusUpdated", fetchOrders);
@@ -133,7 +148,7 @@ const AdminPage = () => {
       socket.off("newOrder", fetchOrders);
       socket.off("orderStatusUpdated", fetchOrders);
     };
-  }, [fetchOrders, fetchProducts]);
+  }, [fetchOrders, fetchProducts, fetchDrinks]);
 
   const handleUpdateStatus = async (id, newStatus) => {
     setOrders((prev) =>
@@ -239,6 +254,13 @@ const AdminPage = () => {
     formData.append("description", newProduct.desc);
     formData.append("category", newProduct.category);
     if (newProduct.imageFile) formData.append("image", newProduct.imageFile);
+    
+    if (newProduct.category === "Paket") {
+      formData.append("includesDrinks", newProduct.includesDrinks);
+      if (newProduct.includesDrinks && newProduct.includedDrinkIds.length > 0) {
+        formData.append("includedDrinkIds", JSON.stringify(newProduct.includedDrinkIds));
+      }
+    }
 
     try {
       await api.post("/api/menu", formData, {
@@ -251,6 +273,8 @@ const AdminPage = () => {
         desc: "",
         category: "Makanan",
         imageFile: null,
+        includesDrinks: false,
+        includedDrinkIds: [],
       });
       setImagePreview(null);
       fetchProducts();
@@ -418,7 +442,13 @@ const AdminPage = () => {
                               })}
                             </span>
                           </div>
-                          <span style={styles.tableBadge}>Meja {o.tableNumber}</span>
+                          
+                          {/* NOMOR MEJA DIPERBESAR DAN LEBIH MENONJOL */}
+                          <div style={styles.tableNumberWrapper}>
+                            <span style={styles.tableNumberLabel}>Meja</span>
+                            <span style={styles.tableNumberValue}>{o.tableNumber}</span>
+                          </div>
+                          
                           <span style={{ ...styles.statusBadge, ...getStatusStyle(o.status) }}>
                             {o.status === "pending" ? "🔔 BARU" : o.status.toUpperCase()}
                           </span>
@@ -456,6 +486,11 @@ const AdminPage = () => {
                                         </span>
                                         <span style={styles.categoryItemName}>
                                           {item.name}
+                                          {item.isIncludedInPackage && (
+                                            <span style={styles.includedBadge}>
+                                              (termasuk paket {item.parentPackageName})
+                                            </span>
+                                          )}
                                         </span>
                                         {item.category === "Minuman" && (
                                           <span style={{
@@ -468,7 +503,11 @@ const AdminPage = () => {
                                         )}
                                       </div>
                                       <div style={styles.categoryItemPrice}>
-                                        Rp {(item.price * item.quantity).toLocaleString()}
+                                        {item.price === 0 ? (
+                                          <span style={{ color: "#10B981", fontSize: "11px" }}>GRATIS</span>
+                                        ) : (
+                                          `Rp ${(item.price * item.quantity).toLocaleString()}`
+                                        )}
                                       </div>
                                     </div>
                                   ))}
@@ -564,6 +603,57 @@ const AdminPage = () => {
                       </select>
                     </div>
                   </div>
+                  
+                  {/* OPTION INCLUDE MINUMAN UNTUK PAKET */}
+                  {newProduct.category === "Paket" && (
+                    <div style={styles.checkboxGroup}>
+                      <label style={styles.checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          checked={newProduct.includesDrinks}
+                          onChange={(e) => setNewProduct({ ...newProduct, includesDrinks: e.target.checked })}
+                          style={styles.checkbox}
+                        />
+                        <span>✓ Include Minuman dalam Paket (Gratis)</span>
+                      </label>
+                      
+                      {newProduct.includesDrinks && (
+                        <div style={styles.drinksSelection}>
+                          <label style={styles.label}>Pilih Minuman yang Termasuk:</label>
+                          <div style={styles.drinksList}>
+                            {availableDrinks.map((drink) => (
+                              <label key={drink._id} style={styles.drinkCheckbox}>
+                                <input
+                                  type="checkbox"
+                                  value={drink._id}
+                                  checked={newProduct.includedDrinkIds.includes(drink._id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setNewProduct({
+                                        ...newProduct,
+                                        includedDrinkIds: [...newProduct.includedDrinkIds, drink._id]
+                                      });
+                                    } else {
+                                      setNewProduct({
+                                        ...newProduct,
+                                        includedDrinkIds: newProduct.includedDrinkIds.filter(id => id !== drink._id)
+                                      });
+                                    }
+                                  }}
+                                />
+                                <span>{drink.name}</span>
+                                <small style={{ color: "#888" }}>(Rp {drink.price?.toLocaleString()})</small>
+                              </label>
+                            ))}
+                          </div>
+                          {availableDrinks.length === 0 && (
+                            <p style={styles.warningText}>Belum ada menu minuman, tambahkan minuman terlebih dahulu</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   <div>
                     <label style={styles.label}>Deskripsi</label>
                     <textarea
@@ -601,6 +691,9 @@ const AdminPage = () => {
                     <div style={{ padding: 15 }}>
                       <h4 style={{ margin: 0, fontSize: 14 }}>{p.name}</h4>
                       <p style={styles.productPrice}>Rp {p.price?.toLocaleString()}</p>
+                      {p.category === "Paket" && p.includesDrinks && (
+                        <p style={{ fontSize: 10, color: "#10B981", margin: "4px 0" }}>✓ Include minuman</p>
+                      )}
                       <button style={styles.deleteBtn} onClick={() => openDeleteModal(p._id, p.name)}>
                         <Trash size={14} /> Hapus
                       </button>
@@ -765,8 +858,34 @@ const styles = {
   ordersGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 20 },
   orderCard: { backgroundColor: "white", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden" },
   orderCardContent: { padding: 16, display: "flex", flexDirection: "column", gap: 16 },
+  
   orderHeader: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" },
-  tableBadge: { backgroundColor: "#c0392b", color: "white", padding: "4px 12px", borderRadius: 8, fontWeight: "bold", fontSize: 12 },
+  
+  // STYLE NOMOR MEJA YANG DIPERBESAR
+  tableNumberWrapper: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    backgroundColor: "#c0392b",
+    padding: "6px 14px",
+    borderRadius: "30px",
+    boxShadow: "0 2px 8px rgba(192, 57, 43, 0.3)",
+  },
+  tableNumberLabel: {
+    fontSize: "12px",
+    fontWeight: "bold",
+    color: "rgba(255,255,255,0.9)",
+    letterSpacing: "0.5px",
+  },
+  tableNumberValue: {
+    fontSize: "20px",
+    fontWeight: "800",
+    color: "white",
+    lineHeight: 1,
+    minWidth: "30px",
+    textAlign: "center",
+  },
+  
   statusBadge: { fontSize: 10, fontWeight: "900", padding: "4px 12px", borderRadius: 20 },
   
   categoriesContainer: { display: "flex", flexDirection: "column", gap: 16, marginBottom: 16 },
@@ -803,6 +922,7 @@ const styles = {
   categoryItemInfo: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", flex: 1 },
   categoryItemQuantity: { fontWeight: "bold", color: "#c0392b", minWidth: "35px", fontSize: "13px" },
   categoryItemName: { color: "#374151", fontSize: "13px", flex: 1 },
+  includedBadge: { fontSize: "10px", color: "#10B981", marginLeft: "6px", fontStyle: "italic" },
   itemStatusBadge: { 
     padding: "2px 8px", 
     borderRadius: "12px", 
@@ -852,6 +972,7 @@ const styles = {
     transition: "all 0.2s",
   },
   
+  // Product form styles
   productFlex: { display: "flex", gap: 20, flexDirection: "column" },
   productFormSide: { width: "100%" },
   formCard: { backgroundColor: "white", padding: 20, borderRadius: 16, border: "1px solid #E5E7EB" },
@@ -862,6 +983,58 @@ const styles = {
   inputRow: { display: "flex", gap: 12, flexDirection: "row" },
   fileLabel: { border: "2px dashed #E5E7EB", padding: 15, borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer" },
   submitBtn: { backgroundColor: "#c0392b", color: "white", padding: 14, borderRadius: 12, border: "none", fontWeight: "bold", cursor: "pointer", fontSize: "16px" },
+  
+  checkboxGroup: {
+    marginTop: "10px",
+    padding: "12px",
+    backgroundColor: "#F9FAFB",
+    borderRadius: "10px",
+    border: "1px solid #E5E7EB",
+  },
+  checkboxLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    cursor: "pointer",
+    fontSize: "14px",
+    fontWeight: "500",
+    color: "#374151",
+  },
+  checkbox: {
+    width: "18px",
+    height: "18px",
+    cursor: "pointer",
+  },
+  drinksSelection: {
+    marginTop: "12px",
+    paddingLeft: "20px",
+    borderLeft: "2px solid #E5E7EB",
+  },
+  drinksList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+    marginTop: "8px",
+    maxHeight: "200px",
+    overflowY: "auto",
+  },
+  drinkCheckbox: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    cursor: "pointer",
+    fontSize: "13px",
+    padding: "6px",
+    borderRadius: "6px",
+    backgroundColor: "#FFFFFF",
+    border: "1px solid #E5E7EB",
+  },
+  warningText: {
+    fontSize: "12px",
+    color: "#EF4444",
+    marginTop: "8px",
+  },
+  
   productListSide: { width: "100%" },
   productGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 15 },
   productCard: { backgroundColor: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden" },
