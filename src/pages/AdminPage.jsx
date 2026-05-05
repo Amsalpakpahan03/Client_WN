@@ -20,7 +20,6 @@ import {
   AlertTriangle,
   Menu,
   Gift,
-  CupSoda,
 } from "lucide-react";
 
 const AdminPage = () => {
@@ -42,7 +41,7 @@ const AdminPage = () => {
   const [imagePreview, setImagePreview] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [availableDrinks, setAvailableDrinks] = useState([]);
-  
+
   const [alert, setAlert] = useState({
     show: false,
     type: "",
@@ -61,7 +60,7 @@ const AdminPage = () => {
       type,
       message,
     });
-    
+
     setTimeout(() => {
       setAlert({ show: false, type: "", message: "" });
     }, 3000);
@@ -70,23 +69,23 @@ const AdminPage = () => {
   useEffect(() => {
     const isAuth = sessionStorage.getItem("admin_auth") === "true";
     const username = sessionStorage.getItem("admin_username");
-    
+
     if (!isAuth) {
       navigate("/admin-login");
       return;
     }
-    
+
     setAdminName(username || "Admin");
   }, [navigate]);
 
   useEffect(() => {
     const checkSession = () => {
       const loginTime = sessionStorage.getItem("admin_login_time");
-      if (loginTime && (Date.now() - parseInt(loginTime) >= 8 * 60 * 60 * 1000)) {
+      if (loginTime && Date.now() - parseInt(loginTime) >= 8 * 60 * 60 * 1000) {
         handleLogout();
       }
     };
-    
+
     const interval = setInterval(checkSession, 60000);
     return () => clearInterval(interval);
   }, []);
@@ -102,7 +101,10 @@ const AdminPage = () => {
     setIsLoading(true);
     try {
       const res = await api.get("/api/orders");
-      let data = res.data.data && Array.isArray(res.data.data) ? res.data.data : res.data;
+      let data =
+        res.data.data && Array.isArray(res.data.data)
+          ? res.data.data
+          : res.data;
       data = data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       setOrders(data);
     } catch (err) {
@@ -118,7 +120,11 @@ const AdminPage = () => {
   const fetchProducts = useCallback(async () => {
     try {
       const res = await api.get("/api/menu");
-      setProducts(res.data.data && Array.isArray(res.data.data) ? res.data.data : res.data);
+      setProducts(
+        res.data.data && Array.isArray(res.data.data)
+          ? res.data.data
+          : res.data,
+      );
     } catch (err) {
       console.error("[ADMIN] Gagal mengambil data menu:", err);
       if (err.response?.status === 401) {
@@ -130,8 +136,11 @@ const AdminPage = () => {
   const fetchDrinks = useCallback(async () => {
     try {
       const res = await api.get("/api/menu");
-      let allMenus = res.data.data && Array.isArray(res.data.data) ? res.data.data : res.data;
-      const drinks = allMenus.filter(menu => menu.category === "Minuman");
+      let allMenus =
+        res.data.data && Array.isArray(res.data.data)
+          ? res.data.data
+          : res.data;
+      const drinks = allMenus.filter((menu) => menu.category === "Minuman");
       setAvailableDrinks(drinks);
     } catch (err) {
       console.error("Gagal mengambil data minuman:", err);
@@ -159,9 +168,15 @@ const AdminPage = () => {
 
     try {
       await api.put(`/api/orders/${id}/status`, { status: newStatus });
-      showAlert("success", `Status pesanan berhasil diupdate menjadi ${newStatus.toUpperCase()}`);
+      showAlert(
+        "success",
+        `Status pesanan berhasil diupdate menjadi ${newStatus.toUpperCase()}`,
+      );
     } catch (err) {
-      showAlert("error", `Gagal update status: ${err.response?.data?.message || err.message}`);
+      showAlert(
+        "error",
+        `Gagal update status: ${err.response?.data?.message || err.message}`,
+      );
       fetchOrders();
     }
   };
@@ -172,42 +187,48 @@ const AdminPage = () => {
         category: "Minuman",
         status: "served",
       });
-      
+
       setOrders((prev) =>
         prev.map((order) => {
           if (order._id === orderId) {
             const updatedItems = order.items.map((item) =>
-              item.category === "Minuman" ? { ...item, status: "served" } : item,
+              item.category === "Minuman"
+                ? { ...item, status: "served" }
+                : item,
             );
             return { ...order, items: updatedItems };
           }
           return order;
         }),
       );
-      
+
       showAlert("success", "Semua minuman berhasil diantar ke pelanggan!");
     } catch (err) {
-      showAlert("error", `Gagal mengantar minuman: ${err.response?.data?.message || err.message}`);
+      showAlert(
+        "error",
+        `Gagal mengantar minuman: ${err.response?.data?.message || err.message}`,
+      );
       fetchOrders();
     }
   };
 
+  // ✅ DIPERBAIKI: Semua minuman termasuk dari paket
   const hasUndeliveredDrinks = (order) => {
     return order.items.some(
-      (item) => item.category === "Minuman" && item.status !== "served" && !item.isIncludedInPackage
+      (item) => item.category === "Minuman" && item.status !== "served"
     );
   };
 
   const groupItemsByCategory = (items) => {
     const categories = ["Makanan", "Minuman", "Cemilan", "Paket"];
     const grouped = {};
-    
-    categories.forEach(cat => {
-      grouped[cat] = items.filter(item => item.category === cat);
+
+    categories.forEach((cat) => {
+      grouped[cat] = items.filter((item) => item.category === cat);
     });
-    
+
     return Object.fromEntries(
-      Object.entries(grouped).filter(([_, items]) => items.length > 0)
+      Object.entries(grouped).filter(([_, items]) => items.length > 0),
     );
   };
 
@@ -229,13 +250,29 @@ const AdminPage = () => {
   const getStatusStyle = (status) => {
     switch (status) {
       case "pending":
-        return { backgroundColor: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A" };
+        return {
+          backgroundColor: "#FFFBEB",
+          color: "#B45309",
+          border: "1px solid #FDE68A",
+        };
       case "cooking":
-        return { backgroundColor: "#EFF6FF", color: "#1E40AF", border: "1px solid #BFDBFE" };
+        return {
+          backgroundColor: "#EFF6FF",
+          color: "#1E40AF",
+          border: "1px solid #BFDBFE",
+        };
       case "served":
-        return { backgroundColor: "#ECFDF5", color: "#065F46", border: "1px solid #A7F3D0" };
+        return {
+          backgroundColor: "#ECFDF5",
+          color: "#065F46",
+          border: "1px solid #A7F3D0",
+        };
       case "paid":
-        return { backgroundColor: "#F1F5F9", color: "#475569", border: "1px solid #E2E8F0" };
+        return {
+          backgroundColor: "#F1F5F9",
+          color: "#475569",
+          border: "1px solid #E2E8F0",
+        };
       default:
         return { backgroundColor: "#F3F4F6", color: "#374151" };
     }
@@ -256,11 +293,14 @@ const AdminPage = () => {
     formData.append("description", newProduct.desc);
     formData.append("category", newProduct.category);
     if (newProduct.imageFile) formData.append("image", newProduct.imageFile);
-    
+
     if (newProduct.category === "Paket") {
       formData.append("includesDrinks", newProduct.includesDrinks);
       if (newProduct.includesDrinks && newProduct.includedDrinkIds.length > 0) {
-        formData.append("includedDrinkIds", JSON.stringify(newProduct.includedDrinkIds));
+        formData.append(
+          "includedDrinkIds",
+          JSON.stringify(newProduct.includedDrinkIds),
+        );
       }
     }
 
@@ -281,7 +321,10 @@ const AdminPage = () => {
       setImagePreview(null);
       fetchProducts();
     } catch (err) {
-      showAlert("error", `❌ Gagal menambah menu: ${err.response?.data?.message || err.message}`);
+      showAlert(
+        "error",
+        `❌ Gagal menambah menu: ${err.response?.data?.message || err.message}`,
+      );
     }
   };
 
@@ -309,7 +352,10 @@ const AdminPage = () => {
       showAlert("success", `✅ Menu "${productName}" berhasil dihapus!`);
       closeDeleteModal();
     } catch (err) {
-      showAlert("error", `❌ Gagal menghapus menu: ${err.response?.data?.message || err.message}`);
+      showAlert(
+        "error",
+        `❌ Gagal menghapus menu: ${err.response?.data?.message || err.message}`,
+      );
       closeDeleteModal();
     }
   };
@@ -351,17 +397,22 @@ const AdminPage = () => {
             <div style={styles.modalBody}>
               <h3 style={styles.modalTitle}>Konfirmasi Hapus Menu</h3>
               <p style={styles.modalMessage}>
-                Apakah Anda yakin ingin menghapus menu <strong>"{deleteModal.productName}"</strong>?
+                Apakah Anda yakin ingin menghapus menu{" "}
+                <strong>"{deleteModal.productName}"</strong>?
               </p>
               <p style={styles.modalWarning}>
-                Tindakan ini tidak dapat dibatalkan dan akan menghapus menu secara permanen dari sistem.
+                Tindakan ini tidak dapat dibatalkan dan akan menghapus menu
+                secara permanen dari sistem.
               </p>
             </div>
             <div style={styles.modalFooter}>
               <button onClick={closeDeleteModal} style={styles.modalCancelBtn}>
                 Batal
               </button>
-              <button onClick={confirmDeleteProduct} style={styles.modalDeleteBtn}>
+              <button
+                onClick={confirmDeleteProduct}
+                style={styles.modalDeleteBtn}
+              >
                 <Trash size={16} /> Hapus Menu
               </button>
             </div>
@@ -384,16 +435,25 @@ const AdminPage = () => {
               </div>
             </div>
           </div>
-          
-          <button style={styles.mobileMenuBtn} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+
+          <button
+            style={styles.mobileMenuBtn}
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
             <Menu size={24} />
           </button>
 
           <div style={styles.tabWrapperDesktop}>
-            <button onClick={() => setActiveTab("orders")} style={styles.tabBtn(activeTab === "orders")}>
+            <button
+              onClick={() => setActiveTab("orders")}
+              style={styles.tabBtn(activeTab === "orders")}
+            >
               <ClipboardList size={18} /> Pesanan
             </button>
-            <button onClick={() => setActiveTab("products")} style={styles.tabBtn(activeTab === "products")}>
+            <button
+              onClick={() => setActiveTab("products")}
+              style={styles.tabBtn(activeTab === "products")}
+            >
               <Boxes size={18} /> Menu
             </button>
             <button onClick={handleLogout} style={styles.desktopLogoutBtn}>
@@ -405,10 +465,22 @@ const AdminPage = () => {
 
       {mobileMenuOpen && (
         <div style={styles.mobileMenu}>
-          <button onClick={() => { setActiveTab("orders"); setMobileMenuOpen(false); }} style={styles.mobileTabBtn(activeTab === "orders")}>
+          <button
+            onClick={() => {
+              setActiveTab("orders");
+              setMobileMenuOpen(false);
+            }}
+            style={styles.mobileTabBtn(activeTab === "orders")}
+          >
             <ClipboardList size={20} /> Pesanan
           </button>
-          <button onClick={() => { setActiveTab("products"); setMobileMenuOpen(false); }} style={styles.mobileTabBtn(activeTab === "products")}>
+          <button
+            onClick={() => {
+              setActiveTab("products");
+              setMobileMenuOpen(false);
+            }}
+            style={styles.mobileTabBtn(activeTab === "products")}
+          >
             <Boxes size={20} /> Menu
           </button>
         </div>
@@ -429,29 +501,47 @@ const AdminPage = () => {
               orders.map((o) => {
                 const groupedItems = groupItemsByCategory(o.items);
                 const categories = Object.keys(groupedItems);
-                
+
                 return (
                   <div key={o._id} style={styles.orderCard}>
                     <div style={styles.orderCardContent}>
                       <div style={{ flex: 1 }}>
                         <div style={styles.orderHeader}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                            }}
+                          >
                             <Clock size={14} />
                             <span style={{ fontSize: 12, color: "#6B7280" }}>
-                              {new Date(o.createdAt).toLocaleTimeString("id-ID", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                              {new Date(o.createdAt).toLocaleTimeString(
+                                "id-ID",
+                                {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                },
+                              )}
                             </span>
                           </div>
-                          
+
                           <div style={styles.tableNumberWrapper}>
                             <span style={styles.tableNumberLabel}>Meja</span>
-                            <span style={styles.tableNumberValue}>{o.tableNumber}</span>
+                            <span style={styles.tableNumberValue}>
+                              {o.tableNumber}
+                            </span>
                           </div>
-                          
-                          <span style={{ ...styles.statusBadge, ...getStatusStyle(o.status) }}>
-                            {o.status === "pending" ? "🔔 BARU" : o.status.toUpperCase()}
+
+                          <span
+                            style={{
+                              ...styles.statusBadge,
+                              ...getStatusStyle(o.status),
+                            }}
+                          >
+                            {o.status === "pending"
+                              ? "🔔 BARU"
+                              : o.status.toUpperCase()}
                           </span>
                         </div>
 
@@ -459,62 +549,92 @@ const AdminPage = () => {
                           {categories.map((category) => {
                             const items = groupedItems[category];
                             const categoryStyle = getCategoryColor(category);
-                            
+
                             return (
-                              <div key={category} style={styles.categorySection}>
-                                <div style={{
-                                  ...styles.categoryHeader,
-                                  backgroundColor: categoryStyle.bg,
-                                  borderBottom: `2px solid ${categoryStyle.border}`,
-                                }}>
-                                  <span style={{ ...styles.categoryTitle, color: categoryStyle.color }}>
-                                    {category === "Paket" && <Gift size={14} style={{ marginRight: 6 }} />}
-                                    {category === "Minuman" && <Coffee size={14} style={{ marginRight: 6 }} />}
+                              <div
+                                key={category}
+                                style={styles.categorySection}
+                              >
+                                <div
+                                  style={{
+                                    ...styles.categoryHeader,
+                                    backgroundColor: categoryStyle.bg,
+                                    borderBottom: `2px solid ${categoryStyle.border}`,
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      ...styles.categoryTitle,
+                                      color: categoryStyle.color,
+                                    }}
+                                  >
+                                    {category === "Paket" && (
+                                      <Gift
+                                        size={14}
+                                        style={{ marginRight: 6 }}
+                                      />
+                                    )}
+                                    {category === "Minuman" && (
+                                      <Coffee
+                                        size={14}
+                                        style={{ marginRight: 6 }}
+                                      />
+                                    )}
                                     {category}
                                   </span>
-                                  <span style={{
-                                    ...styles.categoryCount,
-                                    backgroundColor: categoryStyle.color,
-                                  }}>
+                                  <span
+                                    style={{
+                                      ...styles.categoryCount,
+                                      backgroundColor: categoryStyle.color,
+                                    }}
+                                  >
                                     {items.length}
                                   </span>
                                 </div>
-                                
+
                                 <div style={styles.categoryItems}>
                                   {items.map((item, idx) => (
-                                    <div key={idx} style={{
-                                      ...styles.categoryItemRow,
-                                      backgroundColor: item.isIncludedInPackage ? "#FEFCE8" : "transparent",
-                                      borderLeft: item.isIncludedInPackage ? `3px solid ${categoryStyle.color}` : "none",
-                                    }}>
+                                    <div
+                                      key={idx}
+                                      style={{
+                                        ...styles.categoryItemRow,
+                                        backgroundColor:
+                                          item.isIncludedInPackage
+                                            ? "#FEFCE8"
+                                            : "transparent",
+                                      }}
+                                    >
                                       <div style={styles.categoryItemInfo}>
-                                        <span style={styles.categoryItemQuantity}>
+                                        <span
+                                          style={styles.categoryItemQuantity}
+                                        >
                                           {item.quantity}x
                                         </span>
                                         <span style={styles.categoryItemName}>
                                           {item.name}
-                                          {item.isIncludedInPackage && (
-                                            <span style={styles.includedBadge}>
-                                              🎁 GRATIS DARI PAKET {item.parentPackageName}
-                                            </span>
-                                          )}
                                         </span>
                                         {item.category === "Minuman" && (
-                                          <span style={{
-                                            ...styles.itemStatusBadge,
-                                            backgroundColor: item.status === "served" ? "#D1FAE5" : "#FEF3C7",
-                                            color: item.status === "served" ? "#065F46" : "#D97706",
-                                          }}>
-                                            {item.status === "served" ? "✓ Diantar" : "⏳ Siap"}
+                                          <span
+                                            style={{
+                                              ...styles.itemStatusBadge,
+                                              backgroundColor:
+                                                item.status === "served"
+                                                  ? "#D1FAE5"
+                                                  : "#FEF3C7",
+                                              color:
+                                                item.status === "served"
+                                                  ? "#065F46"
+                                                  : "#D97706",
+                                            }}
+                                          >
+                                            {item.status === "served"
+                                              ? "✓ Diantar"
+                                              : "⏳ Siap"}
                                           </span>
                                         )}
                                       </div>
                                       <div style={styles.categoryItemPrice}>
-                                        {item.price === 0 ? (
-                                          <span style={styles.freeBadge}>GRATIS</span>
-                                        ) : (
-                                          `Rp ${(item.price * item.quantity).toLocaleString()}`
-                                        )}
+                                        Rp {(item.price * item.quantity).toLocaleString()}
                                       </div>
                                     </div>
                                   ))}
@@ -524,36 +644,54 @@ const AdminPage = () => {
                           })}
                         </div>
 
-                        {hasUndeliveredDrinks(o) && o.status !== "served" && o.status !== "paid" && (
-                          <button onClick={() => handleAntarAllMinuman(o._id)} style={styles.antarAllMinumanBtn}>
-                            <Coffee size={18} /> Antar Semua Minuman
-                          </button>
-                        )}
+                        {hasUndeliveredDrinks(o) &&
+                          o.status !== "served" &&
+                          o.status !== "paid" && (
+                            <button
+                              onClick={() => handleAntarAllMinuman(o._id)}
+                              style={styles.antarAllMinumanBtn}
+                            >
+                              <Coffee size={18} /> Antar Semua Minuman
+                            </button>
+                          )}
 
                         <div style={styles.orderFooter}>
-                          <span style={styles.orderId}>#{o._id.slice(-6).toUpperCase()}</span>
-                          <span style={styles.orderTotal}>Rp {o.totalPrice?.toLocaleString()}</span>
+                          <span style={styles.orderId}>
+                            #{o._id.slice(-6).toUpperCase()}
+                          </span>
+                          <span style={styles.orderTotal}>
+                            Rp {o.totalPrice?.toLocaleString()}
+                          </span>
                         </div>
                       </div>
 
                       <div style={styles.orderActions}>
                         <button
                           disabled={o.status !== "pending"}
-                          style={styles.actionBtn(o.status === "pending", "#F59E0B")}
+                          style={styles.actionBtn(
+                            o.status === "pending",
+                            "#F59E0B",
+                          )}
                           onClick={() => handleUpdateStatus(o._id, "cooking")}
                         >
                           <Utensils size={16} /> Masak
                         </button>
                         <button
                           disabled={o.status !== "cooking"}
-                          style={styles.actionBtn(o.status === "cooking", "#3B82F6")}
+                          style={styles.actionBtn(
+                            o.status === "cooking",
+                            "#3B82F6",
+                          )}
                           onClick={() => handleUpdateStatus(o._id, "served")}
                         >
                           Antar Semua
                         </button>
                         <button
                           disabled={o.status !== "served"}
-                          style={styles.actionBtn(o.status === "served", "#10B981")}
+                          style={styles.actionBtn(
+                            o.status === "served",
+                            "#10B981",
+                          )}
                           onClick={() => handleUpdateStatus(o._id, "paid")}
                         >
                           Lunas
@@ -580,7 +718,9 @@ const AdminPage = () => {
                       type="text"
                       placeholder="Contoh: Nasi Goreng"
                       value={newProduct.name}
-                      onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                      onChange={(e) =>
+                        setNewProduct({ ...newProduct, name: e.target.value })
+                      }
                       required
                     />
                   </div>
@@ -592,7 +732,12 @@ const AdminPage = () => {
                         type="number"
                         placeholder="15000"
                         value={newProduct.price}
-                        onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                        onChange={(e) =>
+                          setNewProduct({
+                            ...newProduct,
+                            price: e.target.value,
+                          })
+                        }
                         required
                       />
                     </div>
@@ -601,7 +746,12 @@ const AdminPage = () => {
                       <select
                         style={styles.input}
                         value={newProduct.category}
-                        onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                        onChange={(e) =>
+                          setNewProduct({
+                            ...newProduct,
+                            category: e.target.value,
+                          })
+                        }
                       >
                         <option value="Makanan">Makanan</option>
                         <option value="Cemilan">Cemilan</option>
@@ -610,80 +760,129 @@ const AdminPage = () => {
                       </select>
                     </div>
                   </div>
-                  
+
                   {newProduct.category === "Paket" && (
                     <div style={styles.checkboxGroup}>
                       <label style={styles.checkboxLabel}>
                         <input
                           type="checkbox"
                           checked={newProduct.includesDrinks}
-                          onChange={(e) => setNewProduct({ ...newProduct, includesDrinks: e.target.checked })}
+                          onChange={(e) =>
+                            setNewProduct({
+                              ...newProduct,
+                              includesDrinks: e.target.checked,
+                            })
+                          }
                           style={styles.checkbox}
                         />
                         <span>✓ Include Minuman dalam Paket (Gratis)</span>
                       </label>
-                      
+
                       {newProduct.includesDrinks && (
                         <div style={styles.drinksSelection}>
-                          <label style={styles.label}>Pilih Minuman yang Termasuk:</label>
+                          <label style={styles.label}>
+                            Pilih Minuman yang Termasuk:
+                          </label>
                           <div style={styles.drinksList}>
                             {availableDrinks.map((drink) => (
-                              <label key={drink._id} style={styles.drinkCheckbox}>
+                              <label
+                                key={drink._id}
+                                style={styles.drinkCheckbox}
+                              >
                                 <input
                                   type="checkbox"
                                   value={drink._id}
-                                  checked={newProduct.includedDrinkIds.includes(drink._id)}
+                                  checked={newProduct.includedDrinkIds.includes(
+                                    drink._id,
+                                  )}
                                   onChange={(e) => {
                                     if (e.target.checked) {
                                       setNewProduct({
                                         ...newProduct,
-                                        includedDrinkIds: [...newProduct.includedDrinkIds, drink._id]
+                                        includedDrinkIds: [
+                                          ...newProduct.includedDrinkIds,
+                                          drink._id,
+                                        ],
                                       });
                                     } else {
                                       setNewProduct({
                                         ...newProduct,
-                                        includedDrinkIds: newProduct.includedDrinkIds.filter(id => id !== drink._id)
+                                        includedDrinkIds:
+                                          newProduct.includedDrinkIds.filter(
+                                            (id) => id !== drink._id,
+                                          ),
                                       });
                                     }
                                   }}
                                 />
                                 <span>{drink.name}</span>
-                                <small style={{ color: "#888" }}>(Rp {drink.price?.toLocaleString()})</small>
+                                <small style={{ color: "#888" }}>
+                                  (Rp {drink.price?.toLocaleString()})
+                                </small>
                               </label>
                             ))}
                           </div>
                           {availableDrinks.length === 0 && (
-                            <p style={styles.warningText}>Belum ada menu minuman, tambahkan minuman terlebih dahulu</p>
+                            <p style={styles.warningText}>
+                              Belum ada menu minuman, tambahkan minuman terlebih
+                              dahulu
+                            </p>
                           )}
                         </div>
                       )}
                     </div>
                   )}
-                  
+
                   <div>
                     <label style={styles.label}>Deskripsi</label>
                     <textarea
                       style={{ ...styles.input, height: 80, resize: "none" }}
                       placeholder="Penjelasan singkat menu..."
                       value={newProduct.desc}
-                      onChange={(e) => setNewProduct({ ...newProduct, desc: e.target.value })}
+                      onChange={(e) =>
+                        setNewProduct({ ...newProduct, desc: e.target.value })
+                      }
                     />
                   </div>
                   <div>
                     <label style={styles.label}>Foto Produk</label>
                     <label style={styles.fileLabel}>
-                      <input type="file" hidden accept="image/*" onChange={handleSelectImage} />
+                      <input
+                        type="file"
+                        hidden
+                        accept="image/*"
+                        onChange={handleSelectImage}
+                      />
                       {imagePreview ? (
-                        <img src={imagePreview} alt="Preview" style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 8 }} />
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          style={{
+                            width: "100%",
+                            height: 100,
+                            objectFit: "cover",
+                            borderRadius: 8,
+                          }}
+                        />
                       ) : (
                         <>
                           <ImageIcon size={24} color="#9CA3AF" />
-                          <span style={{ fontSize: 12, color: "#9CA3AF", marginTop: 5 }}>Klik untuk upload</span>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              color: "#9CA3AF",
+                              marginTop: 5,
+                            }}
+                          >
+                            Klik untuk upload
+                          </span>
                         </>
                       )}
                     </label>
                   </div>
-                  <button type="submit" style={styles.submitBtn}>Simpan Menu</button>
+                  <button type="submit" style={styles.submitBtn}>
+                    Simpan Menu
+                  </button>
                 </form>
               </div>
             </div>
@@ -692,17 +891,35 @@ const AdminPage = () => {
                 {products.map((p) => (
                   <div key={p._id} style={styles.productCard}>
                     <div style={styles.productImageWrapper}>
-                      <img src={p.image_url || "/no-image.png"} style={styles.productImage} alt={p.name} onError={(e) => { e.target.src = "/no-image.png"; }} />
+                      <img
+                        src={p.image_url || "/no-image.png"}
+                        style={styles.productImage}
+                        alt={p.name}
+                        onError={(e) => {
+                          e.target.src = "/no-image.png";
+                        }}
+                      />
                     </div>
                     <div style={{ padding: 15 }}>
                       <h4 style={{ margin: 0, fontSize: 14 }}>{p.name}</h4>
-                      <p style={styles.productPrice}>Rp {p.price?.toLocaleString()}</p>
+                      <p style={styles.productPrice}>
+                        Rp {p.price?.toLocaleString()}
+                      </p>
                       {p.category === "Paket" && p.includesDrinks && (
-                        <p style={{ fontSize: 10, color: "#10B981", margin: "4px 0" }}>
+                        <p
+                          style={{
+                            fontSize: 10,
+                            color: "#10B981",
+                            margin: "4px 0",
+                          }}
+                        >
                           ✓ Include minuman
                         </p>
                       )}
-                      <button style={styles.deleteBtn} onClick={() => openDeleteModal(p._id, p.name)}>
+                      <button
+                        style={styles.deleteBtn}
+                        onClick={() => openDeleteModal(p._id, p.name)}
+                      >
                         <Trash size={14} /> Hapus
                       </button>
                     </div>
@@ -718,8 +935,13 @@ const AdminPage = () => {
 };
 
 const styles = {
-  page: { backgroundColor: "#F8F9FA", minHeight: "100vh", fontFamily: "sans-serif", position: "relative" },
-  
+  page: {
+    backgroundColor: "#F8F9FA",
+    minHeight: "100vh",
+    fontFamily: "sans-serif",
+    position: "relative",
+  },
+
   alertContainer: {
     position: "fixed",
     top: "20px",
@@ -743,8 +965,16 @@ const styles = {
   alertIconSuccess: { color: "#10B981" },
   alertIconError: { color: "#EF4444" },
   alertMessage: { fontSize: "14px", fontWeight: "500", color: "#1F2937" },
-  alertCloseBtn: { background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", display: "flex", alignItems: "center", padding: "4px" },
-  
+  alertCloseBtn: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "#9CA3AF",
+    display: "flex",
+    alignItems: "center",
+    padding: "4px",
+  },
+
   modalOverlay: {
     position: "fixed",
     top: 0,
@@ -765,26 +995,119 @@ const styles = {
     maxWidth: "450px",
     boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
   },
-  modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px 0 24px" },
-  modalIconWrapper: { width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center" },
-  modalCloseBtn: { background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", padding: "4px" },
+  modalHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "20px 24px 0 24px",
+  },
+  modalIconWrapper: {
+    width: "48px",
+    height: "48px",
+    borderRadius: "50%",
+    backgroundColor: "#FEF2F2",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCloseBtn: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "#9CA3AF",
+    padding: "4px",
+  },
   modalBody: { padding: "20px 24px" },
-  modalTitle: { margin: "0 0 8px 0", fontSize: "20px", fontWeight: "bold", color: "#111827" },
-  modalMessage: { margin: "0 0 12px 0", fontSize: "14px", color: "#4B5563", lineHeight: "1.5" },
-  modalWarning: { margin: 0, fontSize: "12px", color: "#EF4444", backgroundColor: "#FEF2F2", padding: "8px 12px", borderRadius: "8px", border: "1px solid #FEE2E2" },
+  modalTitle: {
+    margin: "0 0 8px 0",
+    fontSize: "20px",
+    fontWeight: "bold",
+    color: "#111827",
+  },
+  modalMessage: {
+    margin: "0 0 12px 0",
+    fontSize: "14px",
+    color: "#4B5563",
+    lineHeight: "1.5",
+  },
+  modalWarning: {
+    margin: 0,
+    fontSize: "12px",
+    color: "#EF4444",
+    backgroundColor: "#FEF2F2",
+    padding: "8px 12px",
+    borderRadius: "8px",
+    border: "1px solid #FEE2E2",
+  },
   modalFooter: { display: "flex", gap: "12px", padding: "0 24px 24px 24px" },
-  modalCancelBtn: { flex: 1, padding: "10px", backgroundColor: "#F3F4F6", color: "#374151", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: "500", cursor: "pointer" },
-  modalDeleteBtn: { flex: 1, padding: "10px", backgroundColor: "#EF4444", color: "white", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: "500", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" },
-  
+  modalCancelBtn: {
+    flex: 1,
+    padding: "10px",
+    backgroundColor: "#F3F4F6",
+    color: "#374151",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "14px",
+    fontWeight: "500",
+    cursor: "pointer",
+  },
+  modalDeleteBtn: {
+    flex: 1,
+    padding: "10px",
+    backgroundColor: "#EF4444",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "14px",
+    fontWeight: "500",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+  },
+
   container: { maxWidth: 1200, margin: "0 auto", padding: "0 16px" },
-  header: { backgroundColor: "white", borderBottom: "1px solid #E5E7EB", position: "sticky", top: 0, zIndex: 10, padding: "12px 0" },
-  headerContent: { maxWidth: 1200, margin: "0 auto", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 },
+  header: {
+    backgroundColor: "white",
+    borderBottom: "1px solid #E5E7EB",
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+    padding: "12px 0",
+  },
+  headerContent: {
+    maxWidth: 1200,
+    margin: "0 auto",
+    padding: "0 16px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 12,
+  },
   logoArea: { display: "flex", alignItems: "center", gap: 12 },
-  logoText: { margin: 0, fontSize: "clamp(18px, 5vw, 24px)", fontWeight: "bold", color: "#c0392b" },
+  logoText: {
+    margin: 0,
+    fontSize: "clamp(18px, 5vw, 24px)",
+    fontWeight: "bold",
+    color: "#c0392b",
+  },
   liveIndicator: { display: "flex", alignItems: "center", gap: 5 },
-  pulseDot: { width: 8, height: 8, backgroundColor: "#22C55E", borderRadius: "50%", animation: "pulse 2s infinite" },
-  liveText: { fontSize: 10, color: "#9CA3AF", fontWeight: "bold", textTransform: "uppercase" },
-  
+  pulseDot: {
+    width: 8,
+    height: 8,
+    backgroundColor: "#22C55E",
+    borderRadius: "50%",
+    animation: "pulse 2s infinite",
+  },
+  liveText: {
+    fontSize: 10,
+    color: "#9CA3AF",
+    fontWeight: "bold",
+    textTransform: "uppercase",
+  },
+
   mobileLogoutBtn: {
     display: "none",
     backgroundColor: "#EF4444",
@@ -804,19 +1127,19 @@ const styles = {
     padding: "8px",
     color: "#c0392b",
   },
-  
+
   tabWrapperDesktop: { display: "flex", gap: 8, alignItems: "center" },
-  tabBtn: (active) => ({ 
-    padding: "10px 24px", 
-    borderRadius: "10px", 
-    border: "none", 
-    cursor: "pointer", 
-    fontWeight: "bold", 
-    fontSize: "14px", 
-    backgroundColor: active ? "#c0392b" : "#F3F4F6", 
-    color: active ? "white" : "#6B7280", 
-    display: "flex", 
-    alignItems: "center", 
+  tabBtn: (active) => ({
+    padding: "10px 24px",
+    borderRadius: "10px",
+    border: "none",
+    cursor: "pointer",
+    fontWeight: "bold",
+    fontSize: "14px",
+    backgroundColor: active ? "#c0392b" : "#F3F4F6",
+    color: active ? "white" : "#6B7280",
+    display: "flex",
+    alignItems: "center",
     gap: 8,
     transition: "all 0.2s",
   }),
@@ -833,7 +1156,7 @@ const styles = {
     fontSize: 14,
     fontWeight: "bold",
   },
-  
+
   mobileMenu: {
     display: "none",
     position: "absolute",
@@ -862,13 +1185,33 @@ const styles = {
     gap: 10,
     width: "100%",
   }),
-  
-  ordersGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))", gap: 20 },
-  orderCard: { backgroundColor: "white", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden" },
-  orderCardContent: { padding: 16, display: "flex", flexDirection: "column", gap: 16 },
-  
-  orderHeader: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" },
-  
+
+  ordersGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))",
+    gap: 20,
+  },
+  orderCard: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    border: "1px solid #E5E7EB",
+    overflow: "hidden",
+  },
+  orderCardContent: {
+    padding: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
+  },
+
+  orderHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+    flexWrap: "wrap",
+  },
+
   tableNumberWrapper: {
     display: "flex",
     alignItems: "center",
@@ -892,77 +1235,102 @@ const styles = {
     minWidth: "30px",
     textAlign: "center",
   },
-  
-  statusBadge: { fontSize: 10, fontWeight: "900", padding: "4px 12px", borderRadius: 20 },
-  
-  categoriesContainer: { display: "flex", flexDirection: "column", gap: 16, marginBottom: 16 },
-  categorySection: { 
-    border: "1px solid #E5E7EB", 
-    borderRadius: 12, 
+
+  statusBadge: {
+    fontSize: 10,
+    fontWeight: "900",
+    padding: "4px 12px",
+    borderRadius: 20,
+  },
+
+  categoriesContainer: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
+    marginBottom: 16,
+  },
+  categorySection: {
+    border: "1px solid #E5E7EB",
+    borderRadius: 12,
     overflow: "hidden",
     backgroundColor: "#FAFAFA",
   },
-  categoryHeader: { 
-    display: "flex", 
-    alignItems: "center", 
+  categoryHeader: {
+    display: "flex",
+    alignItems: "center",
     justifyContent: "space-between",
     padding: "10px 12px",
     fontWeight: "bold",
     fontSize: "13px",
   },
-  categoryTitle: { fontWeight: "bold", fontSize: "14px", display: "flex", alignItems: "center" },
-  categoryCount: { 
-    padding: "2px 8px", 
-    borderRadius: "20px", 
-    color: "white", 
-    fontSize: "11px", 
+  categoryTitle: {
+    fontWeight: "bold",
+    fontSize: "14px",
+    display: "flex",
+    alignItems: "center",
+  },
+  categoryCount: {
+    padding: "2px 8px",
+    borderRadius: "20px",
+    color: "white",
+    fontSize: "11px",
     fontWeight: "bold",
   },
   categoryItems: { padding: "8px 12px" },
-  categoryItemRow: { 
-    display: "flex", 
-    justifyContent: "space-between", 
-    alignItems: "center", 
+  categoryItemRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: "10px 8px",
     marginBottom: "4px",
     borderRadius: "8px",
     transition: "all 0.2s",
   },
-  categoryItemInfo: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", flex: 1 },
-  categoryItemQuantity: { fontWeight: "bold", color: "#c0392b", minWidth: "35px", fontSize: "13px" },
+  categoryItemInfo: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+    flex: 1,
+  },
+  categoryItemQuantity: {
+    fontWeight: "bold",
+    color: "#c0392b",
+    minWidth: "35px",
+    fontSize: "13px",
+  },
   categoryItemName: { color: "#374151", fontSize: "13px", flex: 1 },
-  includedBadge: { 
-    fontSize: "10px", 
-    color: "#D97706", 
-    marginLeft: "8px", 
-    fontWeight: "bold",
-    backgroundColor: "#FEF3C7",
+  itemStatusBadge: {
     padding: "2px 8px",
     borderRadius: "12px",
-    display: "inline-block",
-  },
-  itemStatusBadge: { 
-    padding: "2px 8px", 
-    borderRadius: "12px", 
-    fontSize: "10px", 
+    fontSize: "10px",
     fontWeight: "bold",
   },
-  categoryItemPrice: { fontWeight: "bold", color: "#EA580C", fontSize: "13px", minWidth: "90px", textAlign: "right" },
-  freeBadge: {
-    fontSize: "11px",
+  categoryItemPrice: {
     fontWeight: "bold",
-    color: "#10B981",
-    backgroundColor: "#D1FAE5",
-    padding: "2px 8px",
-    borderRadius: "12px",
-    display: "inline-block",
+    color: "#EA580C",
+    fontSize: "13px",
+    minWidth: "90px",
+    textAlign: "right",
   },
-  
-  orderFooter: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 12, borderTop: "1px solid #E5E7EB" },
+
+  orderFooter: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+    paddingTop: 12,
+    borderTop: "1px solid #E5E7EB",
+  },
   orderId: { fontSize: 10, color: "#9CA3AF", fontFamily: "monospace" },
   orderTotal: { fontSize: 18, fontWeight: "bold", color: "#EA580C" },
-  orderActions: { display: "flex", flexDirection: "row", gap: 10, flexWrap: "wrap" },
-  
+  orderActions: {
+    display: "flex",
+    flexDirection: "row",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+
   actionBtn: (active, color) => ({
     backgroundColor: active ? color : "#F3F4F6",
     color: active ? "white" : "#9CA3AF",
@@ -980,7 +1348,7 @@ const styles = {
     flex: 1,
     transition: "all 0.2s",
   }),
-  
+
   antarAllMinumanBtn: {
     backgroundColor: "#3B82F6",
     color: "white",
@@ -998,18 +1366,60 @@ const styles = {
     marginTop: "8px",
     transition: "all 0.2s",
   },
-  
+
   productFlex: { display: "flex", gap: 20, flexDirection: "column" },
   productFormSide: { width: "100%" },
-  formCard: { backgroundColor: "white", padding: 20, borderRadius: 16, border: "1px solid #E5E7EB" },
-  formTitle: { margin: "0 0 20px 0", color: "#c0392b", display: "flex", alignItems: "center", gap: 8, fontSize: "18px" },
+  formCard: {
+    backgroundColor: "white",
+    padding: 20,
+    borderRadius: 16,
+    border: "1px solid #E5E7EB",
+  },
+  formTitle: {
+    margin: "0 0 20px 0",
+    color: "#c0392b",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: "18px",
+  },
   form: { display: "flex", flexDirection: "column", gap: 15 },
-  label: { fontSize: 14, fontWeight: "bold", color: "#4B5563", marginBottom: 5, display: "block" },
-  input: { width: "100%", padding: 12, borderRadius: 10, border: "1px solid #D1D5DB", boxSizing: "border-box", fontSize: "14px" },
+  label: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#4B5563",
+    marginBottom: 5,
+    display: "block",
+  },
+  input: {
+    width: "100%",
+    padding: 12,
+    borderRadius: 10,
+    border: "1px solid #D1D5DB",
+    boxSizing: "border-box",
+    fontSize: "14px",
+  },
   inputRow: { display: "flex", gap: 12, flexDirection: "row" },
-  fileLabel: { border: "2px dashed #E5E7EB", padding: 15, borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer" },
-  submitBtn: { backgroundColor: "#c0392b", color: "white", padding: 14, borderRadius: 12, border: "none", fontWeight: "bold", cursor: "pointer", fontSize: "16px" },
-  
+  fileLabel: {
+    border: "2px dashed #E5E7EB",
+    padding: 15,
+    borderRadius: 8,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    cursor: "pointer",
+  },
+  submitBtn: {
+    backgroundColor: "#c0392b",
+    color: "white",
+    padding: 14,
+    borderRadius: 12,
+    border: "none",
+    fontWeight: "bold",
+    cursor: "pointer",
+    fontSize: "16px",
+  },
+
   checkboxGroup: {
     marginTop: "10px",
     padding: "12px",
@@ -1060,15 +1470,44 @@ const styles = {
     color: "#EF4444",
     marginTop: "8px",
   },
-  
+
   productListSide: { width: "100%" },
-  productGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 15 },
-  productCard: { backgroundColor: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden" },
+  productGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+    gap: 15,
+  },
+  productCard: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    border: "1px solid #E5E7EB",
+    overflow: "hidden",
+  },
   productImageWrapper: { height: 130, backgroundColor: "#F3F4F6" },
   productImage: { width: "100%", height: "100%", objectFit: "cover" },
   productPrice: { color: "#c0392b", fontWeight: "bold", margin: "5px 0" },
-  deleteBtn: { width: "100%", border: "1px solid #FEE2E2", color: "#EF4444", backgroundColor: "#FEF2F2", padding: 10, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontWeight: "bold", fontSize: "13px" },
-  emptyState: { textAlign: "center", padding: "60px", backgroundColor: "white", borderRadius: 16, color: "#9CA3AF" },
+  deleteBtn: {
+    width: "100%",
+    border: "1px solid #FEE2E2",
+    color: "#EF4444",
+    backgroundColor: "#FEF2F2",
+    padding: 10,
+    borderRadius: 10,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    fontWeight: "bold",
+    fontSize: "13px",
+  },
+  emptyState: {
+    textAlign: "center",
+    padding: "60px",
+    backgroundColor: "white",
+    borderRadius: 16,
+    color: "#9CA3AF",
+  },
 };
 
 const styleSheet = document.createElement("style");
