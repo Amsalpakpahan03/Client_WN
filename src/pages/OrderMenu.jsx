@@ -50,6 +50,89 @@ function OrderMenu() {
     return id;
   }, []);
 
+  // Load saved cart from localStorage on mount
+  useEffect(() => {
+    if (tableNumber) {
+      const savedCartKey = `cart_${tableNumber}`;
+      const savedCart = localStorage.getItem(savedCartKey);
+      if (savedCart) {
+        try {
+          const parsedCart = JSON.parse(savedCart);
+          setCart(parsedCart);
+        } catch (e) {
+          console.error("Failed to parse saved cart", e);
+        }
+      }
+    }
+  }, [tableNumber]);
+
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    if (tableNumber && Object.keys(cart).length > 0) {
+      const savedCartKey = `cart_${tableNumber}`;
+      localStorage.setItem(savedCartKey, JSON.stringify(cart));
+    } else if (tableNumber && Object.keys(cart).length === 0) {
+      const savedCartKey = `cart_${tableNumber}`;
+      localStorage.removeItem(savedCartKey);
+    }
+  }, [cart, tableNumber]);
+
+  // Load saved delivered items from localStorage
+  useEffect(() => {
+    if (tableNumber && activeOrder?._id) {
+      const savedDeliveredKey = `delivered_${tableNumber}_${activeOrder._id}`;
+      const savedDelivered = localStorage.getItem(savedDeliveredKey);
+      if (savedDelivered) {
+        try {
+          const parsedDelivered = JSON.parse(savedDelivered);
+          setDeliveredItems(parsedDelivered);
+        } catch (e) {
+          console.error("Failed to parse saved delivered items", e);
+        }
+      }
+    }
+  }, [tableNumber, activeOrder?._id]);
+
+  // Save delivered items to localStorage
+  useEffect(() => {
+    if (tableNumber && activeOrder?._id && Object.keys(deliveredItems).length > 0) {
+      const savedDeliveredKey = `delivered_${tableNumber}_${activeOrder._id}`;
+      localStorage.setItem(savedDeliveredKey, JSON.stringify(deliveredItems));
+    }
+  }, [deliveredItems, tableNumber, activeOrder?._id]);
+
+  // Load saved progress from localStorage
+  useEffect(() => {
+    if (tableNumber && activeOrder?._id) {
+      const savedProgressKey = `progress_${tableNumber}_${activeOrder._id}`;
+      const savedProgress = localStorage.getItem(savedProgressKey);
+      if (savedProgress) {
+        setOrderProgress(parseInt(savedProgress));
+      }
+    }
+  }, [tableNumber, activeOrder?._id]);
+
+  // Save progress to localStorage
+  useEffect(() => {
+    if (tableNumber && activeOrder?._id && orderProgress > 0) {
+      const savedProgressKey = `progress_${tableNumber}_${activeOrder._id}`;
+      localStorage.setItem(savedProgressKey, orderProgress.toString());
+    }
+  }, [orderProgress, tableNumber, activeOrder?._id]);
+
+  // Clear saved data when order is completed (paid)
+  useEffect(() => {
+    if (activeOrder?.status === "paid" && tableNumber && activeOrder?._id) {
+      const savedCartKey = `cart_${tableNumber}`;
+      const savedDeliveredKey = `delivered_${tableNumber}_${activeOrder._id}`;
+      const savedProgressKey = `progress_${tableNumber}_${activeOrder._id}`;
+      
+      localStorage.removeItem(savedCartKey);
+      localStorage.removeItem(savedDeliveredKey);
+      localStorage.removeItem(savedProgressKey);
+    }
+  }, [activeOrder?.status, tableNumber, activeOrder?._id]);
+
   // Calculate statistics for delivered items
   const deliveredStats = useMemo(() => {
     const items =
@@ -200,22 +283,24 @@ function OrderMenu() {
   }, [tableNumber, updateOrderFromSocket, deliveredItems]);
 
   const updateProgressByStatus = (status) => {
+    let progress = 0;
     switch (status) {
       case "pending":
-        setOrderProgress(25);
+        progress = 25;
         break;
       case "cooking":
-        setOrderProgress(60);
+        progress = 60;
         break;
       case "served":
-        setOrderProgress(100);
+        progress = 100;
         break;
       case "paid":
-        setOrderProgress(100);
+        progress = 100;
         break;
       default:
-        setOrderProgress(0);
+        progress = 0;
     }
+    setOrderProgress(progress);
   };
 
   const addToCart = useCallback((item) => {
@@ -271,6 +356,10 @@ function OrderMenu() {
     try {
       await createOrder({ tableNumber, items, totalPrice, token });
       setCart({});
+      
+      // Clear cart from localStorage after successful order
+      const savedCartKey = `cart_${tableNumber}`;
+      localStorage.removeItem(savedCartKey);
 
       for (let i = 0; i <= 100; i += 5) {
         await new Promise((resolve) => setTimeout(resolve, 30));
@@ -491,9 +580,7 @@ function OrderMenu() {
                     <div style={styles.progressGlow} />
                   </div>
                 </div>
-                <div style={styles.progressPercentage}>
-                  {typeof orderProgress === 'number' ? Math.round(orderProgress) : 0}%
-                </div>
+                {/* Persentase dihapus dari sini */}
               </div>
             </div>
 
@@ -606,7 +693,7 @@ function OrderMenu() {
                 }}
               />
             </div>
-            <p style={styles.loadingText}>{Math.round(animationProgress)}%</p>
+            {/* Persentase di loading animation juga dihapus */}
           </div>
         </div>
       )}
@@ -996,13 +1083,6 @@ const styles = {
       "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
     animation: "shimmer 2s infinite",
   },
-  progressPercentage: {
-    textAlign: "center",
-    fontSize: "12px",
-    color: COLORS.orange,
-    fontWeight: "600",
-    letterSpacing: "0.5px",
-  },
   deliveryProgress: { marginTop: "20px", textAlign: "center" },
   deliveryProgressText: {
     fontSize: "12px",
@@ -1069,11 +1149,6 @@ const styles = {
     height: "100%",
     background: `linear-gradient(90deg, ${COLORS.orange}, #ff8c42)`,
     transition: "width 0.3s ease",
-  },
-  loadingText: {
-    fontSize: "14px",
-    color: COLORS.orange,
-    fontWeight: "600",
   },
   expiredContainer: {
     flex: 1,

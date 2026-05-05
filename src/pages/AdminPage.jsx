@@ -17,6 +17,11 @@ import {
   LogOut,
   TrendingUp,
   DollarSign,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  X,
+  AlertTriangle,
 } from "lucide-react";
 
 const AdminPage = () => {
@@ -34,6 +39,34 @@ const AdminPage = () => {
     imageFile: null,
   });
   const [imagePreview, setImagePreview] = useState(null);
+  
+  // State untuk alert notifications
+  const [alert, setAlert] = useState({
+    show: false,
+    type: "", // success, error
+    message: "",
+  });
+
+  // State untuk modal konfirmasi delete
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    productId: null,
+    productName: "",
+  });
+
+  // Function to show alert
+  const showAlert = (type, message) => {
+    setAlert({
+      show: true,
+      type,
+      message,
+    });
+    
+    // Auto hide after 3 seconds
+    setTimeout(() => {
+      setAlert({ show: false, type: "", message: "" });
+    }, 3000);
+  };
 
   // Check authentication on mount
   useEffect(() => {
@@ -68,11 +101,10 @@ const AdminPage = () => {
     navigate("/admin-login");
   };
 
-  // ✅ PERBAIKI 1: fetchOrders - tambah /api
   const fetchOrders = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await api.get("/api/orders");  // ✅ DIPERBAIKI
+      const res = await api.get("/api/orders");
       let data =
         res.data.data && Array.isArray(res.data.data)
           ? res.data.data
@@ -90,10 +122,9 @@ const AdminPage = () => {
     }
   }, []);
 
-  // ✅ PERBAIKI 2: fetchProducts - tambah /api
   const fetchProducts = useCallback(async () => {
     try {
-      const res = await api.get("/api/menu");  // ✅ DIPERBAIKI
+      const res = await api.get("/api/menu");
       setProducts(
         res.data.data && Array.isArray(res.data.data)
           ? res.data.data
@@ -120,7 +151,6 @@ const AdminPage = () => {
     };
   }, [fetchOrders, fetchProducts]);
 
-  // ✅ PERBAIKI 3: handleUpdateStatus - tambah /api
   const handleUpdateStatus = async (id, newStatus) => {
     console.log("[ADMIN] Updating global status:", id, "→", newStatus);
 
@@ -129,18 +159,16 @@ const AdminPage = () => {
     );
 
     try {
-      await api.put(`/api/orders/${id}/status`, { status: newStatus });  // ✅ DIPERBAIKI
+      await api.put(`/api/orders/${id}/status`, { status: newStatus });
       console.log("[ADMIN] Status global berhasil diupdate");
+      showAlert("success", `Status pesanan berhasil diupdate menjadi ${newStatus.toUpperCase()}`);
     } catch (err) {
       console.error("[ADMIN] Gagal update status", err);
-      alert(
-        `Gagal update status: ${err.response?.data?.message || err.message}`,
-      );
+      showAlert("error", `Gagal update status: ${err.response?.data?.message || err.message}`);
       fetchOrders();
     }
   };
 
-  // ✅ PERBAIKI 4: handleAntarMinuman - tambah /api
   const handleAntarMinuman = async (orderId) => {
     console.log("[ADMIN] Mengantar minuman untuk order:", orderId);
 
@@ -157,16 +185,15 @@ const AdminPage = () => {
     );
 
     try {
-      const response = await api.put(`/api/orders/${orderId}/update-category-status`, {  // ✅ DIPERBAIKI
+      const response = await api.put(`/api/orders/${orderId}/update-category-status`, {
         category: "Minuman",
         status: "served",
       });
       console.log("[ADMIN] Response antar minuman:", response.data);
+      showAlert("success", "Minuman berhasil diantar ke pelanggan!");
     } catch (err) {
       console.error("[ADMIN] Gagal antar minuman", err);
-      alert(
-        `Gagal mengantar minuman: ${err.response?.data?.message || err.message}`,
-      );
+      showAlert("error", `Gagal mengantar minuman: ${err.response?.data?.message || err.message}`);
       fetchOrders();
     }
   };
@@ -178,7 +205,6 @@ const AdminPage = () => {
     setImagePreview(URL.createObjectURL(file));
   };
 
-  // ✅ PERBAIKI 5: handleAddProduct - tambah /api
   const handleAddProduct = async (e) => {
     e.preventDefault();
     const formData = new FormData();
@@ -189,10 +215,10 @@ const AdminPage = () => {
     if (newProduct.imageFile) formData.append("image", newProduct.imageFile);
 
     try {
-      await api.post("/api/menu", formData, {  // ✅ DIPERBAIKI
+      await api.post("/api/menu", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      alert("Produk berhasil ditambahkan!");
+      showAlert("success", "Menu berhasil ditambahkan!");
       setNewProduct({
         name: "",
         price: "",
@@ -203,21 +229,39 @@ const AdminPage = () => {
       setImagePreview(null);
       fetchProducts();
     } catch (err) {
-      alert(
-        `Gagal menambah produk: ${err.response?.data?.message || err.message}`,
-      );
+      showAlert("error", `Gagal menambah menu: ${err.response?.data?.message || err.message}`);
     }
   };
 
-  // ✅ PERBAIKI 6: handleDeleteProduct - tambah /api
-  const handleDeleteProduct = async (id) => {
-    if (!window.confirm("Yakin ingin menghapus produk ini?")) return;
+  // Fungsi untuk membuka modal konfirmasi delete
+  const openDeleteModal = (id, name) => {
+    setDeleteModal({
+      isOpen: true,
+      productId: id,
+      productName: name,
+    });
+  };
+
+  // Fungsi untuk menutup modal konfirmasi delete
+  const closeDeleteModal = () => {
+    setDeleteModal({
+      isOpen: false,
+      productId: null,
+      productName: "",
+    });
+  };
+
+  // Fungsi untuk menghapus produk setelah konfirmasi
+  const confirmDeleteProduct = async () => {
+    const { productId, productName } = deleteModal;
     try {
-      await api.delete(`/api/menu/${id}`);  // ✅ DIPERBAIKI
+      await api.delete(`/api/menu/${productId}`);
       fetchProducts();
-      alert("Produk berhasil dihapus");
+      showAlert("success", `Menu "${productName}" berhasil dihapus!`);
+      closeDeleteModal();
     } catch (err) {
-      alert(`Gagal menghapus: ${err.response?.data?.message || err.message}`);
+      showAlert("error", `Gagal menghapus menu: ${err.response?.data?.message || err.message}`);
+      closeDeleteModal();
     }
   };
 
@@ -254,6 +298,61 @@ const AdminPage = () => {
 
   return (
     <div style={styles.page}>
+      {/* Alert Notification */}
+      {alert.show && (
+        <div style={styles.alertContainer}>
+          <div style={styles.alert(alert.type)}>
+            <div style={styles.alertContent}>
+              {alert.type === "success" ? (
+                <CheckCircle size={20} style={styles.alertIconSuccess} />
+              ) : (
+                <XCircle size={20} style={styles.alertIconError} />
+              )}
+              <span style={styles.alertMessage}>{alert.message}</span>
+            </div>
+            <button
+              onClick={() => setAlert({ show: false, type: "", message: "" })}
+              style={styles.alertCloseBtn}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal.isOpen && (
+        <div style={styles.modalOverlay} onClick={closeDeleteModal}>
+          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <div style={styles.modalIconWrapper}>
+                <AlertTriangle size={24} color="#EF4444" />
+              </div>
+              <button onClick={closeDeleteModal} style={styles.modalCloseBtn}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={styles.modalBody}>
+              <h3 style={styles.modalTitle}>Konfirmasi Hapus Menu</h3>
+              <p style={styles.modalMessage}>
+                Apakah Anda yakin ingin menghapus menu <strong>"{deleteModal.productName}"</strong>?
+              </p>
+              <p style={styles.modalWarning}>
+                Tindakan ini tidak dapat dibatalkan dan akan menghapus menu secara permanen dari sistem.
+              </p>
+            </div>
+            <div style={styles.modalFooter}>
+              <button onClick={closeDeleteModal} style={styles.modalCancelBtn}>
+                Batal
+              </button>
+              <button onClick={confirmDeleteProduct} style={styles.modalDeleteBtn}>
+                <Trash size={16} /> Hapus Menu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={styles.header}>
         <div style={styles.headerContent}>
           <div style={styles.logoArea}>
@@ -386,7 +485,6 @@ const AdminPage = () => {
                   <Plus size={20} /> Tambah Menu
                 </h3>
                 <form onSubmit={handleAddProduct} style={styles.form}>
-                  {/* form content same as before */}
                   <div>
                     <label style={styles.label}>Nama Menu</label>
                     <input
@@ -461,7 +559,10 @@ const AdminPage = () => {
                     <div style={{ padding: 15 }}>
                       <h4 style={{ margin: 0, fontSize: 14 }}>{p.name}</h4>
                       <p style={styles.productPrice}>Rp {p.price?.toLocaleString()}</p>
-                      <button style={styles.deleteBtn} onClick={() => handleDeleteProduct(p._id)}>
+                      <button 
+                        style={styles.deleteBtn} 
+                        onClick={() => openDeleteModal(p._id, p.name)}
+                      >
                         <Trash size={14} /> Hapus
                       </button>
                     </div>
@@ -477,7 +578,161 @@ const AdminPage = () => {
 };
 
 const styles = {
-  page: { backgroundColor: "#F8F9FA", minHeight: "100vh", fontFamily: "sans-serif" },
+  page: { backgroundColor: "#F8F9FA", minHeight: "100vh", fontFamily: "sans-serif", position: "relative" },
+  
+  // Alert styles
+  alertContainer: {
+    position: "fixed",
+    top: "20px",
+    right: "20px",
+    zIndex: 9999,
+    animation: "slideIn 0.3s ease-out",
+  },
+  alert: (type) => ({
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minWidth: "300px",
+    maxWidth: "400px",
+    padding: "12px 16px",
+    borderRadius: "12px",
+    backgroundColor: type === "success" ? "#D1FAE5" : "#FEE2E2",
+    borderLeft: `4px solid ${type === "success" ? "#10B981" : "#EF4444"}`,
+    boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+  }),
+  alertContent: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+  },
+  alertIconSuccess: {
+    color: "#10B981",
+  },
+  alertIconError: {
+    color: "#EF4444",
+  },
+  alertMessage: {
+    fontSize: "14px",
+    fontWeight: "500",
+    color: "#1F2937",
+  },
+  alertCloseBtn: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "#9CA3AF",
+    display: "flex",
+    alignItems: "center",
+    padding: "4px",
+    borderRadius: "4px",
+    transition: "all 0.2s",
+  },
+  
+  // Modal styles
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backdropFilter: "blur(4px)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10000,
+    animation: "fadeIn 0.2s ease-out",
+  },
+  modal: {
+    backgroundColor: "white",
+    borderRadius: "16px",
+    width: "90%",
+    maxWidth: "450px",
+    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+    animation: "scaleIn 0.2s ease-out",
+  },
+  modalHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "20px 24px 0 24px",
+  },
+  modalIconWrapper: {
+    width: "48px",
+    height: "48px",
+    borderRadius: "50%",
+    backgroundColor: "#FEF2F2",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCloseBtn: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "#9CA3AF",
+    padding: "4px",
+    borderRadius: "8px",
+    transition: "all 0.2s",
+  },
+  modalBody: {
+    padding: "20px 24px",
+  },
+  modalTitle: {
+    margin: "0 0 8px 0",
+    fontSize: "20px",
+    fontWeight: "bold",
+    color: "#111827",
+  },
+  modalMessage: {
+    margin: "0 0 12px 0",
+    fontSize: "14px",
+    color: "#4B5563",
+    lineHeight: "1.5",
+  },
+  modalWarning: {
+    margin: 0,
+    fontSize: "12px",
+    color: "#EF4444",
+    backgroundColor: "#FEF2F2",
+    padding: "8px 12px",
+    borderRadius: "8px",
+    border: "1px solid #FEE2E2",
+  },
+  modalFooter: {
+    display: "flex",
+    gap: "12px",
+    padding: "0 24px 24px 24px",
+  },
+  modalCancelBtn: {
+    flex: 1,
+    padding: "10px",
+    backgroundColor: "#F3F4F6",
+    color: "#374151",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "14px",
+    fontWeight: "500",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+  modalDeleteBtn: {
+    flex: 1,
+    padding: "10px",
+    backgroundColor: "#EF4444",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "14px",
+    fontWeight: "500",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    transition: "all 0.2s",
+  },
+  
   container: { maxWidth: 1200, margin: "0 auto", padding: "0 20px" },
   header: { backgroundColor: "white", borderBottom: "1px solid #E5E7EB", position: "sticky", top: 0, zIndex: 10, padding: "15px 0" },
   headerContent: { maxWidth: 1200, margin: "0 auto", padding: "0 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 15 },
@@ -525,7 +780,7 @@ const styles = {
   productImageWrapper: { height: 150, backgroundColor: "#F3F4F6" },
   productImage: { width: "100%", height: "100%", objectFit: "cover" },
   productPrice: { color: "#c0392b", fontWeight: "bold", margin: "5px 0" },
-  deleteBtn: { width: "100%", border: "1px solid #FEE2E2", color: "#EF4444", backgroundColor: "#FEF2F2", padding: 8, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 },
+  deleteBtn: { width: "100%", border: "1px solid #FEE2E2", color: "#EF4444", backgroundColor: "#FEF2F2", padding: 8, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.2s" },
   actionBtnDisabled: (active) => ({ backgroundColor: active ? "#E5E7EB" : "#F3F4F6", color: active ? "#1F2937" : "#9CA3AF", border: "none", padding: 8, borderRadius: 8, fontWeight: "bold", fontSize: 10, cursor: active ? "pointer" : "not-allowed", opacity: active ? 1 : 0.6, display: "flex", alignItems: "center", gap: 4, justifyContent: "center" }),
   emptyState: { textAlign: "center", padding: "60px", backgroundColor: "white", borderRadius: 16, color: "#9CA3AF" },
 };
@@ -537,7 +792,46 @@ styleSheet.textContent = `
     50% { opacity: 0.5; transform: scale(1.2); }
     100% { opacity: 1; transform: scale(1); }
   }
+  
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes scaleIn {
+    from {
+      transform: scale(0.95);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  
+  button:hover {
+    transform: translateY(-1px);
+  }
+  
+  button:active {
+    transform: translateY(0);
+  }
 `;
 document.head.appendChild(styleSheet);
 
-export default AdminPage; 
+export default AdminPage;
