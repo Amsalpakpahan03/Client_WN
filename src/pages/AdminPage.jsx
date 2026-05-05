@@ -946,7 +946,7 @@ const AdminPage = () => {
 
 const styles = {
   page: {
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#f3ca58",
     minHeight: "100vh",
     fontFamily: "sans-serif",
     position: "relative",
