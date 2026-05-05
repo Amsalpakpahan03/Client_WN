@@ -19,6 +19,10 @@ import {
   X,
   AlertTriangle,
   Menu,
+  Pizza,
+  Beer,
+  Cookie,
+  Gift,
 } from "lucide-react";
 
 const AdminPage = () => {
@@ -161,15 +165,14 @@ const AdminPage = () => {
     }
   };
 
-  // Fungsi untuk antar minuman - SATU TOMBOL UNTUK SEMUA MINUMAN
+  // Fungsi untuk antar minuman
   const handleAntarAllMinuman = async (orderId) => {
     try {
-      const response = await api.put(`/api/orders/${orderId}/update-category-status`, {
+      await api.put(`/api/orders/${orderId}/update-category-status`, {
         category: "Minuman",
         status: "served",
       });
       
-      // Update local state
       setOrders((prev) =>
         prev.map((order) => {
           if (order._id === orderId) {
@@ -196,67 +199,50 @@ const AdminPage = () => {
     );
   };
 
-  const handleSelectImage = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setNewProduct({ ...newProduct, imageFile: file });
-    setImagePreview(URL.createObjectURL(file));
+  // Fungsi untuk mengelompokkan item berdasarkan kategori
+  const groupItemsByCategory = (items) => {
+    const categories = ["Makanan", "Minuman", "Cemilan", "Paket"];
+    const grouped = {};
+    
+    categories.forEach(cat => {
+      grouped[cat] = items.filter(item => item.category === cat);
+    });
+    
+    // Hanya return kategori yang memiliki item
+    return Object.fromEntries(
+      Object.entries(grouped).filter(([_, items]) => items.length > 0)
+    );
   };
 
-  const handleAddProduct = async (e) => {
-    e.preventDefault();
-    const formData = new FormData();
-    formData.append("name", newProduct.name);
-    formData.append("price", newProduct.price);
-    formData.append("description", newProduct.desc);
-    formData.append("category", newProduct.category);
-    if (newProduct.imageFile) formData.append("image", newProduct.imageFile);
-
-    try {
-      await api.post("/api/menu", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      showAlert("success", "✅ Menu berhasil ditambahkan!");
-      setNewProduct({
-        name: "",
-        price: "",
-        desc: "",
-        category: "Makanan",
-        imageFile: null,
-      });
-      setImagePreview(null);
-      fetchProducts();
-    } catch (err) {
-      showAlert("error", `❌ Gagal menambah menu: ${err.response?.data?.message || err.message}`);
+  // Dapatkan icon berdasarkan kategori
+  const getCategoryIcon = (category) => {
+    switch (category) {
+      case "Makanan":
+        return <Utensils size={14} />;
+      case "Minuman":
+        return <Coffee size={14} />;
+      case "Cemilan":
+        return <Cookie size={14} />;
+      case "Paket":
+        return <Gift size={14} />;
+      default:
+        return <Pizza size={14} />;
     }
   };
 
-  const openDeleteModal = (id, name) => {
-    setDeleteModal({
-      isOpen: true,
-      productId: id,
-      productName: name,
-    });
-  };
-
-  const closeDeleteModal = () => {
-    setDeleteModal({
-      isOpen: false,
-      productId: null,
-      productName: "",
-    });
-  };
-
-  const confirmDeleteProduct = async () => {
-    const { productId, productName } = deleteModal;
-    try {
-      await api.delete(`/api/menu/${productId}`);
-      fetchProducts();
-      showAlert("success", `✅ Menu "${productName}" berhasil dihapus!`);
-      closeDeleteModal();
-    } catch (err) {
-      showAlert("error", `❌ Gagal menghapus menu: ${err.response?.data?.message || err.message}`);
-      closeDeleteModal();
+  // Dapatkan warna background berdasarkan kategori
+  const getCategoryColor = (category) => {
+    switch (category) {
+      case "Makanan":
+        return { bg: "#FEF3C7", color: "#D97706", border: "#FDE68A" };
+      case "Minuman":
+        return { bg: "#DBEAFE", color: "#2563EB", border: "#BFDBFE" };
+      case "Cemilan":
+        return { bg: "#FCE7F3", color: "#DB2777", border: "#FBCFE8" };
+      case "Paket":
+        return { bg: "#D1FAE5", color: "#059669", border: "#A7F3D0" };
+      default:
+        return { bg: "#F3F4F6", color: "#6B7280", border: "#E5E7EB" };
     }
   };
 
@@ -351,7 +337,6 @@ const AdminPage = () => {
       {/* Header */}
       <div style={styles.header}>
         <div style={styles.headerContent}>
-          {/* Tombol Logout di KIRI untuk mobile */}
           <button onClick={handleLogout} style={styles.mobileLogoutBtn}>
             <LogOut size={20} />
           </button>
@@ -366,7 +351,6 @@ const AdminPage = () => {
             </div>
           </div>
           
-          {/* Tombol menu mobile */}
           <button 
             style={styles.mobileMenuBtn} 
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -374,7 +358,6 @@ const AdminPage = () => {
             <Menu size={24} />
           </button>
 
-          {/* Desktop Tab Menu */}
           <div style={styles.tabWrapperDesktop}>
             <button
               onClick={() => setActiveTab("orders")}
@@ -431,43 +414,90 @@ const AdminPage = () => {
                 <p>Belum ada pesanan</p>
               </div>
             ) : (
-              orders.map((o) => (
-                <div key={o._id} style={styles.orderCard}>
-                  <div style={styles.orderCardContent}>
-                    <div style={{ flex: 1 }}>
-                      <div style={styles.orderHeader}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <Clock size={14} />
-                          <span style={{ fontSize: 12, color: "#6B7280" }}>
-                            {new Date(o.createdAt).toLocaleTimeString("id-ID", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+              orders.map((o) => {
+                const groupedItems = groupItemsByCategory(o.items);
+                const categories = Object.keys(groupedItems);
+                
+                return (
+                  <div key={o._id} style={styles.orderCard}>
+                    <div style={styles.orderCardContent}>
+                      <div style={{ flex: 1 }}>
+                        {/* Header Order */}
+                        <div style={styles.orderHeader}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <Clock size={14} />
+                            <span style={{ fontSize: 12, color: "#6B7280" }}>
+                              {new Date(o.createdAt).toLocaleTimeString("id-ID", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                          <span style={styles.tableBadge}>Meja {o.tableNumber}</span>
+                          <span style={{ ...styles.statusBadge, ...getStatusStyle(o.status) }}>
+                            {o.status === "pending" ? "🔔 BARU" : o.status.toUpperCase()}
                           </span>
                         </div>
-                        <span style={styles.tableBadge}>Meja {o.tableNumber}</span>
-                        <span style={{ ...styles.statusBadge, ...getStatusStyle(o.status) }}>
-                          {o.status === "pending" ? "🔔 BARU" : o.status.toUpperCase()}
-                        </span>
-                      </div>
 
-                      <div style={styles.itemList}>
-                        {o.items.map((item, idx) => (
-                          <div key={idx} style={styles.itemRow}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexWrap: "wrap", gap: 8 }}>
-                              <div>
-                                <b style={{ color: "#c0392b" }}>{item.quantity}x</b> {item.name}
-                                {item.category === "Minuman" && (
-                                  <span style={{ fontSize: 10, marginLeft: 8, color: item.status === "served" ? "#10B981" : "#F59E0B", fontWeight: "bold" }}>
-                                    ({item.status === "served" ? "✓ Diantar" : "⏳ Siap"})
+                        {/* Items Grouped by Category */}
+                        <div style={styles.categoriesContainer}>
+                          {categories.map((category) => {
+                            const items = groupedItems[category];
+                            const categoryStyle = getCategoryColor(category);
+                            const hasUndeliveredDrinksInCategory = category === "Minuman" && 
+                              items.some(item => item.status !== "served");
+                            
+                            return (
+                              <div key={category} style={styles.categorySection}>
+                                <div style={{
+                                  ...styles.categoryHeader,
+                                  backgroundColor: categoryStyle.bg,
+                                  borderBottom: `2px solid ${categoryStyle.border}`,
+                                }}>
+                                  {getCategoryIcon(category)}
+                                  <span style={{ ...styles.categoryTitle, color: categoryStyle.color }}>
+                                    {category}
                                   </span>
-                                )}
+                                  <span style={{
+                                    ...styles.categoryCount,
+                                    backgroundColor: categoryStyle.color,
+                                  }}>
+                                    {items.length}
+                                  </span>
+                                </div>
+                                
+                                <div style={styles.categoryItems}>
+                                  {items.map((item, idx) => (
+                                    <div key={idx} style={styles.categoryItemRow}>
+                                      <div style={styles.categoryItemInfo}>
+                                        <span style={styles.categoryItemQuantity}>
+                                          {item.quantity}x
+                                        </span>
+                                        <span style={styles.categoryItemName}>
+                                          {item.name}
+                                        </span>
+                                        {item.category === "Minuman" && (
+                                          <span style={{
+                                            ...styles.itemStatusBadge,
+                                            backgroundColor: item.status === "served" ? "#D1FAE5" : "#FEF3C7",
+                                            color: item.status === "served" ? "#065F46" : "#D97706",
+                                          }}>
+                                            {item.status === "served" ? "✓ Diantar" : "⏳ Siap"}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div style={styles.categoryItemPrice}>
+                                        Rp {(item.price * item.quantity).toLocaleString()}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          </div>
-                        ))}
-                        
-                        {/* Tombol Antar Semua Minuman - SATU TOMBOL UNTUK SEMUA */}
+                            );
+                          })}
+                        </div>
+
+                        {/* Tombol Antar Semua Minuman */}
                         {hasUndeliveredDrinks(o) && o.status !== "served" && o.status !== "paid" && (
                           <button 
                             onClick={() => handleAntarAllMinuman(o._id)} 
@@ -476,40 +506,42 @@ const AdminPage = () => {
                             <Coffee size={18} /> Antar Semua Minuman
                           </button>
                         )}
+
+                        {/* Footer Order */}
+                        <div style={styles.orderFooter}>
+                          <span style={styles.orderId}>#{o._id.slice(-6).toUpperCase()}</span>
+                          <span style={styles.orderTotal}>Rp {o.totalPrice?.toLocaleString()}</span>
+                        </div>
                       </div>
 
-                      <div style={styles.orderFooter}>
-                        <span style={styles.orderId}>#{o._id.slice(-6).toUpperCase()}</span>
-                        <span style={styles.orderTotal}>Rp {o.totalPrice?.toLocaleString()}</span>
+                      {/* Action Buttons */}
+                      <div style={styles.orderActions}>
+                        <button
+                          disabled={o.status !== "pending"}
+                          style={styles.actionBtn(o.status === "pending", "#F59E0B")}
+                          onClick={() => handleUpdateStatus(o._id, "cooking")}
+                        >
+                          <Utensils size={16} /> Masak
+                        </button>
+                        <button
+                          disabled={o.status !== "cooking"}
+                          style={styles.actionBtn(o.status === "cooking", "#3B82F6")}
+                          onClick={() => handleUpdateStatus(o._id, "served")}
+                        >
+                          Antar Semua
+                        </button>
+                        <button
+                          disabled={o.status !== "served"}
+                          style={styles.actionBtn(o.status === "served", "#10B981")}
+                          onClick={() => handleUpdateStatus(o._id, "paid")}
+                        >
+                          Lunas
+                        </button>
                       </div>
-                    </div>
-
-                    <div style={styles.orderActions}>
-                      <button
-                        disabled={o.status !== "pending"}
-                        style={styles.actionBtn(o.status === "pending", "#F59E0B")}
-                        onClick={() => handleUpdateStatus(o._id, "cooking")}
-                      >
-                        <Utensils size={16} /> Masak
-                      </button>
-                      <button
-                        disabled={o.status !== "cooking"}
-                        style={styles.actionBtn(o.status === "cooking", "#3B82F6")}
-                        onClick={() => handleUpdateStatus(o._id, "served")}
-                      >
-                        Antar Semua
-                      </button>
-                      <button
-                        disabled={o.status !== "served"}
-                        style={styles.actionBtn(o.status === "served", "#10B981")}
-                        onClick={() => handleUpdateStatus(o._id, "paid")}
-                      >
-                        Lunas
-                      </button>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         ) : (
@@ -680,7 +712,6 @@ const styles = {
   pulseDot: { width: 8, height: 8, backgroundColor: "#22C55E", borderRadius: "50%", animation: "pulse 2s infinite" },
   liveText: { fontSize: 10, color: "#9CA3AF", fontWeight: "bold", textTransform: "uppercase" },
   
-  // Mobile logout button (kiri)
   mobileLogoutBtn: {
     display: "none",
     backgroundColor: "#EF4444",
@@ -759,20 +790,61 @@ const styles = {
     width: "100%",
   }),
   
-  ordersGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: 20 },
+  ordersGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 20 },
   orderCard: { backgroundColor: "white", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden" },
   orderCardContent: { padding: 16, display: "flex", flexDirection: "column", gap: 16 },
   orderHeader: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" },
   tableBadge: { backgroundColor: "#c0392b", color: "white", padding: "4px 12px", borderRadius: 8, fontWeight: "bold", fontSize: 12 },
   statusBadge: { fontSize: 10, fontWeight: "900", padding: "4px 12px", borderRadius: 20 },
-  itemList: { marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid #F3F4F6" },
-  itemRow: { fontSize: 14, color: "#4B5563", marginBottom: 8 },
-  orderFooter: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  
+  // Category Styles
+  categoriesContainer: { display: "flex", flexDirection: "column", gap: 16, marginBottom: 16 },
+  categorySection: { 
+    border: "1px solid #E5E7EB", 
+    borderRadius: 12, 
+    overflow: "hidden",
+    backgroundColor: "#FAFAFA",
+  },
+  categoryHeader: { 
+    display: "flex", 
+    alignItems: "center", 
+    gap: 8, 
+    padding: "10px 12px",
+    fontWeight: "bold",
+    fontSize: "13px",
+  },
+  categoryTitle: { flex: 1, fontWeight: "bold", fontSize: "14px" },
+  categoryCount: { 
+    padding: "2px 8px", 
+    borderRadius: "20px", 
+    color: "white", 
+    fontSize: "11px", 
+    fontWeight: "bold",
+  },
+  categoryItems: { padding: "8px 12px" },
+  categoryItemRow: { 
+    display: "flex", 
+    justifyContent: "space-between", 
+    alignItems: "center", 
+    padding: "8px 0",
+    borderBottom: "1px solid #F3F4F6",
+  },
+  categoryItemInfo: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", flex: 1 },
+  categoryItemQuantity: { fontWeight: "bold", color: "#c0392b", minWidth: "35px", fontSize: "13px" },
+  categoryItemName: { color: "#374151", fontSize: "13px", flex: 1 },
+  itemStatusBadge: { 
+    padding: "2px 8px", 
+    borderRadius: "12px", 
+    fontSize: "10px", 
+    fontWeight: "bold",
+  },
+  categoryItemPrice: { fontWeight: "bold", color: "#EA580C", fontSize: "13px", minWidth: "90px", textAlign: "right" },
+  
+  orderFooter: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 12, borderTop: "1px solid #E5E7EB" },
   orderId: { fontSize: 10, color: "#9CA3AF", fontFamily: "monospace" },
   orderTotal: { fontSize: 18, fontWeight: "bold", color: "#EA580C" },
   orderActions: { display: "flex", flexDirection: "row", gap: 10, flexWrap: "wrap" },
   
-  // Tombol yang lebih besar dengan highlight
   actionBtn: (active, color) => ({
     backgroundColor: active ? color : "#F3F4F6",
     color: active ? "white" : "#9CA3AF",
@@ -805,7 +877,7 @@ const styles = {
     gap: 8,
     justifyContent: "center",
     width: "100%",
-    marginTop: "12px",
+    marginTop: "8px",
     transition: "all 0.2s",
   },
   
@@ -816,7 +888,7 @@ const styles = {
   form: { display: "flex", flexDirection: "column", gap: 15 },
   label: { fontSize: 14, fontWeight: "bold", color: "#4B5563", marginBottom: 5, display: "block" },
   input: { width: "100%", padding: 12, borderRadius: 10, border: "1px solid #D1D5DB", boxSizing: "border-box", fontSize: "14px" },
-  inputRow: { display: "flex", gap: 12, flexDirection: "column" },
+  inputRow: { display: "flex", gap: 12, flexDirection: "row" },
   fileLabel: { border: "2px dashed #E5E7EB", padding: 15, borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer" },
   submitBtn: { backgroundColor: "#c0392b", color: "white", padding: 14, borderRadius: 12, border: "none", fontWeight: "bold", cursor: "pointer", fontSize: "16px" },
   productListSide: { width: "100%" },
@@ -829,7 +901,7 @@ const styles = {
   emptyState: { textAlign: "center", padding: "60px", backgroundColor: "white", borderRadius: 16, color: "#9CA3AF" },
 };
 
-// Responsive Styles - Media Queries untuk mobile
+// CSS Animations
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
   @keyframes pulse {
@@ -853,41 +925,40 @@ styleSheet.textContent = `
   
   /* Mobile Responsive */
   @media (max-width: 768px) {
-    .styles_tabWrapperDesktop {
-      display: none !important;
-    }
-  }
-  
-  @media (max-width: 768px) {
-    .styles_mobileLogoutBtn, .styles_mobileMenuBtn {
+    .mobileLogoutBtn, .mobileMenuBtn {
       display: flex !important;
     }
-    .styles_tabWrapperDesktop {
+    .tabWrapperDesktop {
       display: none !important;
     }
-    .styles_mobileMenu {
+    .mobileMenu {
       display: flex !important;
     }
-    .styles_orderActions {
+    .orderActions {
       flex-direction: column !important;
     }
-    .styles_inputRow {
+    .inputRow {
       flex-direction: column !important;
+    }
+    .ordersGrid {
+      grid-template-columns: 1fr !important;
     }
   }
 `;
 document.head.appendChild(styleSheet);
 
-// Perbaiki styles dengan menambahkan override untuk responsive
-const responsiveOverride = {
-  '@media (max-width: 768px)': {
-    '.mobileLogoutBtn': { display: 'flex' },
-    '.mobileMenuBtn': { display: 'flex' },
-    '.tabWrapperDesktop': { display: 'none' },
-    '.mobileMenu': { display: 'flex' },
-    '.orderActions': { flexDirection: 'column' },
-    '.inputRow': { flexDirection: 'column' },
-  }
+// Fix untuk function yang belum didefinisikan
+const openDeleteModal = (id, name) => {
+  // This will be called from the component
+  window.dispatchEvent(new CustomEvent('openDeleteModal', { detail: { id, name } }));
+};
+
+const closeDeleteModal = () => {
+  window.dispatchEvent(new CustomEvent('closeDeleteModal'));
+};
+
+const confirmDeleteProduct = async () => {
+  window.dispatchEvent(new CustomEvent('confirmDeleteProduct'));
 };
 
 export default AdminPage;
