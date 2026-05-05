@@ -864,13 +864,19 @@ const styles = {
     boxShadow: "0 -10px 20px rgba(0,0,0,0.05)",
   },
   // ================= STYLE NAVIGASI KATEGORI =================
-  categoryNav: {
-    display: "flex",
-    justifyContent: "space-around",
-    padding: "0 16px",
-    marginBottom: "20px",
-    gap: "10px",
-  },
+categoryNav: {
+  display: "flex",
+  justifyContent: "space-around",
+  padding: "0 16px",
+  marginBottom: "20px",
+  gap: "10px",
+  position: "sticky",
+  top: 0,
+  backgroundColor: COLORS.white,
+  zIndex: 10,
+  paddingTop: "10px",
+  paddingBottom: "10px",
+},
   navButton: {
     flex: 1,
     padding: "10px 0",
