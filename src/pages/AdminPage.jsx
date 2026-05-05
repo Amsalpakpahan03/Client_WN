@@ -5,7 +5,6 @@ import api from "../api/axios";
 import socket from "../api/socket";
 import {
   Loader,
-  Package,
   Boxes,
   Plus,
   Trash,
@@ -15,13 +14,11 @@ import {
   Coffee,
   Utensils,
   LogOut,
-  TrendingUp,
-  DollarSign,
   CheckCircle,
   XCircle,
-  AlertCircle,
   X,
   AlertTriangle,
+  Menu,
 } from "lucide-react";
 
 const AdminPage = () => {
@@ -39,11 +36,12 @@ const AdminPage = () => {
     imageFile: null,
   });
   const [imagePreview, setImagePreview] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // State untuk alert notifications
   const [alert, setAlert] = useState({
     show: false,
-    type: "", // success, error
+    type: "",
     message: "",
   });
 
@@ -62,7 +60,6 @@ const AdminPage = () => {
       message,
     });
     
-    // Auto hide after 3 seconds
     setTimeout(() => {
       setAlert({ show: false, type: "", message: "" });
     }, 3000);
@@ -111,7 +108,6 @@ const AdminPage = () => {
           : res.data;
       data = data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       setOrders(data);
-      console.log("[ADMIN] Orders fetched:", data.length, "orders");
     } catch (err) {
       console.error("[ADMIN] Gagal mengambil data pesanan", err);
       if (err.response?.status === 401) {
@@ -152,50 +148,52 @@ const AdminPage = () => {
   }, [fetchOrders, fetchProducts]);
 
   const handleUpdateStatus = async (id, newStatus) => {
-    console.log("[ADMIN] Updating global status:", id, "→", newStatus);
-
     setOrders((prev) =>
       prev.map((o) => (o._id === id ? { ...o, status: newStatus } : o)),
     );
 
     try {
       await api.put(`/api/orders/${id}/status`, { status: newStatus });
-      console.log("[ADMIN] Status global berhasil diupdate");
       showAlert("success", `Status pesanan berhasil diupdate menjadi ${newStatus.toUpperCase()}`);
     } catch (err) {
-      console.error("[ADMIN] Gagal update status", err);
       showAlert("error", `Gagal update status: ${err.response?.data?.message || err.message}`);
       fetchOrders();
     }
   };
 
-  const handleAntarMinuman = async (orderId) => {
-    console.log("[ADMIN] Mengantar minuman untuk order:", orderId);
-
-    setOrders((prev) =>
-      prev.map((order) => {
-        if (order._id === orderId) {
-          const updatedItems = order.items.map((item) =>
-            item.category === "Minuman" ? { ...item, status: "served" } : item,
-          );
-          return { ...order, items: updatedItems };
-        }
-        return order;
-      }),
-    );
-
+  // Fungsi untuk antar minuman - SATU TOMBOL UNTUK SEMUA MINUMAN
+  const handleAntarAllMinuman = async (orderId) => {
     try {
       const response = await api.put(`/api/orders/${orderId}/update-category-status`, {
         category: "Minuman",
         status: "served",
       });
-      console.log("[ADMIN] Response antar minuman:", response.data);
-      showAlert("success", "Minuman berhasil diantar ke pelanggan!");
+      
+      // Update local state
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order._id === orderId) {
+            const updatedItems = order.items.map((item) =>
+              item.category === "Minuman" ? { ...item, status: "served" } : item,
+            );
+            return { ...order, items: updatedItems };
+          }
+          return order;
+        }),
+      );
+      
+      showAlert("success", "Semua minuman berhasil diantar ke pelanggan!");
     } catch (err) {
-      console.error("[ADMIN] Gagal antar minuman", err);
       showAlert("error", `Gagal mengantar minuman: ${err.response?.data?.message || err.message}`);
       fetchOrders();
     }
+  };
+
+  // Cek apakah order memiliki minuman yang belum diantar
+  const hasUndeliveredDrinks = (order) => {
+    return order.items.some(
+      (item) => item.category === "Minuman" && item.status !== "served"
+    );
   };
 
   const handleSelectImage = (e) => {
@@ -218,7 +216,7 @@ const AdminPage = () => {
       await api.post("/api/menu", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      showAlert("success", "Menu berhasil ditambahkan!");
+      showAlert("success", "✅ Menu berhasil ditambahkan!");
       setNewProduct({
         name: "",
         price: "",
@@ -229,11 +227,10 @@ const AdminPage = () => {
       setImagePreview(null);
       fetchProducts();
     } catch (err) {
-      showAlert("error", `Gagal menambah menu: ${err.response?.data?.message || err.message}`);
+      showAlert("error", `❌ Gagal menambah menu: ${err.response?.data?.message || err.message}`);
     }
   };
 
-  // Fungsi untuk membuka modal konfirmasi delete
   const openDeleteModal = (id, name) => {
     setDeleteModal({
       isOpen: true,
@@ -242,7 +239,6 @@ const AdminPage = () => {
     });
   };
 
-  // Fungsi untuk menutup modal konfirmasi delete
   const closeDeleteModal = () => {
     setDeleteModal({
       isOpen: false,
@@ -251,16 +247,15 @@ const AdminPage = () => {
     });
   };
 
-  // Fungsi untuk menghapus produk setelah konfirmasi
   const confirmDeleteProduct = async () => {
     const { productId, productName } = deleteModal;
     try {
       await api.delete(`/api/menu/${productId}`);
       fetchProducts();
-      showAlert("success", `Menu "${productName}" berhasil dihapus!`);
+      showAlert("success", `✅ Menu "${productName}" berhasil dihapus!`);
       closeDeleteModal();
     } catch (err) {
-      showAlert("error", `Gagal menghapus menu: ${err.response?.data?.message || err.message}`);
+      showAlert("error", `❌ Gagal menghapus menu: ${err.response?.data?.message || err.message}`);
       closeDeleteModal();
     }
   };
@@ -353,8 +348,14 @@ const AdminPage = () => {
         </div>
       )}
 
+      {/* Header */}
       <div style={styles.header}>
         <div style={styles.headerContent}>
+          {/* Tombol Logout di KIRI untuk mobile */}
+          <button onClick={handleLogout} style={styles.mobileLogoutBtn}>
+            <LogOut size={20} />
+          </button>
+
           <div style={styles.logoArea}>
             <div>
               <h1 style={styles.logoText}>Admin Dashboard</h1>
@@ -365,29 +366,58 @@ const AdminPage = () => {
             </div>
           </div>
           
-          <div style={styles.adminInfo}>
-            <span style={styles.adminName}>👋 Halo, {adminName}</span>
-            <button onClick={handleLogout} style={styles.logoutBtn}>
-              <LogOut size={16} /> Logout
-            </button>
-          </div>
-          
-          <div style={styles.tabWrapper}>
+          {/* Tombol menu mobile */}
+          <button 
+            style={styles.mobileMenuBtn} 
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            <Menu size={24} />
+          </button>
+
+          {/* Desktop Tab Menu */}
+          <div style={styles.tabWrapperDesktop}>
             <button
               onClick={() => setActiveTab("orders")}
               style={styles.tabBtn(activeTab === "orders")}
             >
-              <ClipboardList size={16} /> Pesanan
+              <ClipboardList size={18} /> Pesanan
             </button>
             <button
               onClick={() => setActiveTab("products")}
               style={styles.tabBtn(activeTab === "products")}
             >
-              <Boxes size={16} /> Menu
+              <Boxes size={18} /> Menu
+            </button>
+            <button onClick={handleLogout} style={styles.desktopLogoutBtn}>
+              <LogOut size={16} /> Logout
             </button>
           </div>
         </div>
       </div>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div style={styles.mobileMenu}>
+          <button
+            onClick={() => {
+              setActiveTab("orders");
+              setMobileMenuOpen(false);
+            }}
+            style={styles.mobileTabBtn(activeTab === "orders")}
+          >
+            <ClipboardList size={20} /> Pesanan
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("products");
+              setMobileMenuOpen(false);
+            }}
+            style={styles.mobileTabBtn(activeTab === "products")}
+          >
+            <Boxes size={20} /> Menu
+          </button>
+        </div>
+      )}
 
       <div style={styles.container}>
         {activeTab === "orders" ? (
@@ -424,7 +454,7 @@ const AdminPage = () => {
                       <div style={styles.itemList}>
                         {o.items.map((item, idx) => (
                           <div key={idx} style={styles.itemRow}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexWrap: "wrap", gap: 8 }}>
                               <div>
                                 <b style={{ color: "#c0392b" }}>{item.quantity}x</b> {item.name}
                                 {item.category === "Minuman" && (
@@ -433,14 +463,19 @@ const AdminPage = () => {
                                   </span>
                                 )}
                               </div>
-                              {item.category === "Minuman" && item.status !== "served" && (
-                                <button onClick={() => handleAntarMinuman(o._id)} style={styles.antarMinumanBtn}>
-                                  <Coffee size={12} /> Antar Minuman
-                                </button>
-                              )}
                             </div>
                           </div>
                         ))}
+                        
+                        {/* Tombol Antar Semua Minuman - SATU TOMBOL UNTUK SEMUA */}
+                        {hasUndeliveredDrinks(o) && o.status !== "served" && o.status !== "paid" && (
+                          <button 
+                            onClick={() => handleAntarAllMinuman(o._id)} 
+                            style={styles.antarAllMinumanBtn}
+                          >
+                            <Coffee size={18} /> Antar Semua Minuman
+                          </button>
+                        )}
                       </div>
 
                       <div style={styles.orderFooter}>
@@ -452,21 +487,21 @@ const AdminPage = () => {
                     <div style={styles.orderActions}>
                       <button
                         disabled={o.status !== "pending"}
-                        style={styles.actionBtnDisabled(o.status === "pending")}
+                        style={styles.actionBtn(o.status === "pending", "#F59E0B")}
                         onClick={() => handleUpdateStatus(o._id, "cooking")}
                       >
-                        <Utensils size={12} /> Masak
+                        <Utensils size={16} /> Masak
                       </button>
                       <button
                         disabled={o.status !== "cooking"}
-                        style={styles.actionBtnDisabled(o.status === "cooking")}
+                        style={styles.actionBtn(o.status === "cooking", "#3B82F6")}
                         onClick={() => handleUpdateStatus(o._id, "served")}
                       >
                         Antar Semua
                       </button>
                       <button
                         disabled={o.status !== "served"}
-                        style={styles.actionBtnDisabled(o.status === "served")}
+                        style={styles.actionBtn(o.status === "served", "#10B981")}
                         onClick={() => handleUpdateStatus(o._id, "paid")}
                       >
                         Lunas
@@ -580,7 +615,6 @@ const AdminPage = () => {
 const styles = {
   page: { backgroundColor: "#F8F9FA", minHeight: "100vh", fontFamily: "sans-serif", position: "relative" },
   
-  // Alert styles
   alertContainer: {
     position: "fixed",
     top: "20px",
@@ -592,43 +626,20 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    minWidth: "300px",
-    maxWidth: "400px",
+    minWidth: "250px",
+    maxWidth: "350px",
     padding: "12px 16px",
     borderRadius: "12px",
     backgroundColor: type === "success" ? "#D1FAE5" : "#FEE2E2",
     borderLeft: `4px solid ${type === "success" ? "#10B981" : "#EF4444"}`,
-    boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+    boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
   }),
-  alertContent: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-  },
-  alertIconSuccess: {
-    color: "#10B981",
-  },
-  alertIconError: {
-    color: "#EF4444",
-  },
-  alertMessage: {
-    fontSize: "14px",
-    fontWeight: "500",
-    color: "#1F2937",
-  },
-  alertCloseBtn: {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    color: "#9CA3AF",
-    display: "flex",
-    alignItems: "center",
-    padding: "4px",
-    borderRadius: "4px",
-    transition: "all 0.2s",
-  },
+  alertContent: { display: "flex", alignItems: "center", gap: "12px" },
+  alertIconSuccess: { color: "#10B981" },
+  alertIconError: { color: "#EF4444" },
+  alertMessage: { fontSize: "14px", fontWeight: "500", color: "#1F2937" },
+  alertCloseBtn: { background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", display: "flex", alignItems: "center", padding: "4px" },
   
-  // Modal styles
   modalOverlay: {
     position: "fixed",
     top: 0,
@@ -641,150 +652,184 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     zIndex: 10000,
-    animation: "fadeIn 0.2s ease-out",
   },
   modal: {
     backgroundColor: "white",
     borderRadius: "16px",
     width: "90%",
     maxWidth: "450px",
-    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-    animation: "scaleIn 0.2s ease-out",
+    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
   },
-  modalHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "20px 24px 0 24px",
-  },
-  modalIconWrapper: {
-    width: "48px",
-    height: "48px",
-    borderRadius: "50%",
-    backgroundColor: "#FEF2F2",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalCloseBtn: {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    color: "#9CA3AF",
-    padding: "4px",
-    borderRadius: "8px",
-    transition: "all 0.2s",
-  },
-  modalBody: {
-    padding: "20px 24px",
-  },
-  modalTitle: {
-    margin: "0 0 8px 0",
-    fontSize: "20px",
-    fontWeight: "bold",
-    color: "#111827",
-  },
-  modalMessage: {
-    margin: "0 0 12px 0",
-    fontSize: "14px",
-    color: "#4B5563",
-    lineHeight: "1.5",
-  },
-  modalWarning: {
-    margin: 0,
-    fontSize: "12px",
-    color: "#EF4444",
-    backgroundColor: "#FEF2F2",
-    padding: "8px 12px",
-    borderRadius: "8px",
-    border: "1px solid #FEE2E2",
-  },
-  modalFooter: {
-    display: "flex",
-    gap: "12px",
-    padding: "0 24px 24px 24px",
-  },
-  modalCancelBtn: {
-    flex: 1,
-    padding: "10px",
-    backgroundColor: "#F3F4F6",
-    color: "#374151",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "14px",
-    fontWeight: "500",
-    cursor: "pointer",
-    transition: "all 0.2s",
-  },
-  modalDeleteBtn: {
-    flex: 1,
-    padding: "10px",
-    backgroundColor: "#EF4444",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "14px",
-    fontWeight: "500",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "8px",
-    transition: "all 0.2s",
-  },
+  modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px 0 24px" },
+  modalIconWrapper: { width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center" },
+  modalCloseBtn: { background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", padding: "4px" },
+  modalBody: { padding: "20px 24px" },
+  modalTitle: { margin: "0 0 8px 0", fontSize: "20px", fontWeight: "bold", color: "#111827" },
+  modalMessage: { margin: "0 0 12px 0", fontSize: "14px", color: "#4B5563", lineHeight: "1.5" },
+  modalWarning: { margin: 0, fontSize: "12px", color: "#EF4444", backgroundColor: "#FEF2F2", padding: "8px 12px", borderRadius: "8px", border: "1px solid #FEE2E2" },
+  modalFooter: { display: "flex", gap: "12px", padding: "0 24px 24px 24px" },
+  modalCancelBtn: { flex: 1, padding: "10px", backgroundColor: "#F3F4F6", color: "#374151", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: "500", cursor: "pointer" },
+  modalDeleteBtn: { flex: 1, padding: "10px", backgroundColor: "#EF4444", color: "white", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: "500", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" },
   
-  container: { maxWidth: 1200, margin: "0 auto", padding: "0 20px" },
-  header: { backgroundColor: "white", borderBottom: "1px solid #E5E7EB", position: "sticky", top: 0, zIndex: 10, padding: "15px 0" },
-  headerContent: { maxWidth: 1200, margin: "0 auto", padding: "0 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 15 },
+  container: { maxWidth: 1200, margin: "0 auto", padding: "0 16px" },
+  header: { backgroundColor: "white", borderBottom: "1px solid #E5E7EB", position: "sticky", top: 0, zIndex: 10, padding: "12px 0" },
+  headerContent: { maxWidth: 1200, margin: "0 auto", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 },
   logoArea: { display: "flex", alignItems: "center", gap: 12 },
-  logoText: { margin: 0, fontSize: 24, fontWeight: "bold", color: "#c0392b" },
+  logoText: { margin: 0, fontSize: "clamp(18px, 5vw, 24px)", fontWeight: "bold", color: "#c0392b" },
   liveIndicator: { display: "flex", alignItems: "center", gap: 5 },
   pulseDot: { width: 8, height: 8, backgroundColor: "#22C55E", borderRadius: "50%", animation: "pulse 2s infinite" },
   liveText: { fontSize: 10, color: "#9CA3AF", fontWeight: "bold", textTransform: "uppercase" },
-  adminInfo: { display: "flex", alignItems: "center", gap: 15, backgroundColor: "#F3F4F6", padding: "8px 16px", borderRadius: 12 },
-  adminName: { fontSize: 14, fontWeight: 500, color: "#374151" },
-  logoutBtn: { display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", backgroundColor: "#EF4444", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 500 },
-  tabWrapper: { display: "flex", backgroundColor: "#F3F4F6", padding: 4, borderRadius: 12 },
-  tabBtn: (active) => ({ padding: "8px 20px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: "bold", fontSize: 14, backgroundColor: active ? "white" : "transparent", color: active ? "#c0392b" : "#6B7280", boxShadow: active ? "0 1px 3px rgba(0,0,0,0.1)" : "none", display: "flex", alignItems: "center", gap: 6 }),
-  statsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 20, margin: "30px 0" },
-  statCard: { backgroundColor: "white", padding: 20, borderRadius: 16, border: "1px solid #F3F4F6", display: "flex", alignItems: "center", gap: 15 },
-  statIcon: { padding: 12, borderRadius: "50%" },
-  statLabel: { margin: 0, fontSize: 12, color: "#6B7280", fontWeight: "bold", textTransform: "uppercase" },
-  statValue: { margin: 0, fontSize: 24, fontWeight: "bold", color: "#1F2937" },
-  ordersGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(450px, 1fr))", gap: 20 },
+  
+  // Mobile logout button (kiri)
+  mobileLogoutBtn: {
+    display: "none",
+    backgroundColor: "#EF4444",
+    color: "white",
+    border: "none",
+    borderRadius: "10px",
+    padding: "10px",
+    cursor: "pointer",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mobileMenuBtn: {
+    display: "none",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    padding: "8px",
+    color: "#c0392b",
+  },
+  
+  tabWrapperDesktop: { display: "flex", gap: 8, alignItems: "center" },
+  tabBtn: (active) => ({ 
+    padding: "10px 24px", 
+    borderRadius: "10px", 
+    border: "none", 
+    cursor: "pointer", 
+    fontWeight: "bold", 
+    fontSize: "14px", 
+    backgroundColor: active ? "#c0392b" : "#F3F4F6", 
+    color: active ? "white" : "#6B7280", 
+    display: "flex", 
+    alignItems: "center", 
+    gap: 8,
+    transition: "all 0.2s",
+  }),
+  desktopLogoutBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "10px 20px",
+    backgroundColor: "#EF4444",
+    color: "white",
+    border: "none",
+    borderRadius: "10px",
+    cursor: "pointer",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  
+  mobileMenu: {
+    display: "none",
+    position: "absolute",
+    top: "70px",
+    right: "16px",
+    backgroundColor: "white",
+    borderRadius: "12px",
+    boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+    padding: "8px",
+    zIndex: 20,
+    flexDirection: "column",
+    gap: "8px",
+    minWidth: "160px",
+  },
+  mobileTabBtn: (active) => ({
+    padding: "12px 20px",
+    borderRadius: "10px",
+    border: "none",
+    cursor: "pointer",
+    fontWeight: "bold",
+    fontSize: "14px",
+    backgroundColor: active ? "#c0392b" : "transparent",
+    color: active ? "white" : "#374151",
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+  }),
+  
+  ordersGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: 20 },
   orderCard: { backgroundColor: "white", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden" },
-  orderCardContent: { padding: 20, display: "flex", gap: 20 },
-  orderHeader: { display: "flex", alignItems: "center", gap: 10, marginBottom: 15, flexWrap: "wrap" },
+  orderCardContent: { padding: 16, display: "flex", flexDirection: "column", gap: 16 },
+  orderHeader: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" },
   tableBadge: { backgroundColor: "#c0392b", color: "white", padding: "4px 12px", borderRadius: 8, fontWeight: "bold", fontSize: 12 },
   statusBadge: { fontSize: 10, fontWeight: "900", padding: "4px 12px", borderRadius: 20 },
-  itemList: { marginBottom: 15, paddingBottom: 15, borderBottom: "1px solid #F3F4F6" },
+  itemList: { marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid #F3F4F6" },
   itemRow: { fontSize: 14, color: "#4B5563", marginBottom: 8 },
   orderFooter: { display: "flex", justifyContent: "space-between", alignItems: "center" },
   orderId: { fontSize: 10, color: "#9CA3AF", fontFamily: "monospace" },
   orderTotal: { fontSize: 18, fontWeight: "bold", color: "#EA580C" },
-  orderActions: { display: "flex", flexDirection: "column", gap: 8, minWidth: 100 },
-  antarMinumanBtn: { backgroundColor: "#3B82F6", color: "white", border: "none", padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: "bold", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 },
-  productFlex: { display: "flex", gap: 30, flexWrap: "wrap" },
-  productFormSide: { flex: 1, minWidth: 300 },
-  formCard: { backgroundColor: "white", padding: 25, borderRadius: 16, border: "1px solid #E5E7EB", position: "sticky", top: 100 },
-  formTitle: { margin: "0 0 20px 0", color: "#c0392b", display: "flex", alignItems: "center", gap: 8 },
+  orderActions: { display: "flex", flexDirection: "row", gap: 10, flexWrap: "wrap" },
+  
+  // Tombol yang lebih besar dengan highlight
+  actionBtn: (active, color) => ({
+    backgroundColor: active ? color : "#F3F4F6",
+    color: active ? "white" : "#9CA3AF",
+    border: "none",
+    padding: "12px 20px",
+    borderRadius: "12px",
+    fontWeight: "bold",
+    fontSize: "14px",
+    cursor: active ? "pointer" : "not-allowed",
+    opacity: active ? 1 : 0.6,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    justifyContent: "center",
+    flex: 1,
+    transition: "all 0.2s",
+  }),
+  
+  antarAllMinumanBtn: {
+    backgroundColor: "#3B82F6",
+    color: "white",
+    border: "none",
+    padding: "12px 16px",
+    borderRadius: "12px",
+    fontSize: "14px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    justifyContent: "center",
+    width: "100%",
+    marginTop: "12px",
+    transition: "all 0.2s",
+  },
+  
+  productFlex: { display: "flex", gap: 20, flexDirection: "column" },
+  productFormSide: { width: "100%" },
+  formCard: { backgroundColor: "white", padding: 20, borderRadius: 16, border: "1px solid #E5E7EB" },
+  formTitle: { margin: "0 0 20px 0", color: "#c0392b", display: "flex", alignItems: "center", gap: 8, fontSize: "18px" },
   form: { display: "flex", flexDirection: "column", gap: 15 },
   label: { fontSize: 14, fontWeight: "bold", color: "#4B5563", marginBottom: 5, display: "block" },
-  input: { width: "100%", padding: 10, borderRadius: 8, border: "1px solid #D1D5DB", boxSizing: "border-box" },
-  inputRow: { display: "flex", gap: 15 },
+  input: { width: "100%", padding: 12, borderRadius: 10, border: "1px solid #D1D5DB", boxSizing: "border-box", fontSize: "14px" },
+  inputRow: { display: "flex", gap: 12, flexDirection: "column" },
   fileLabel: { border: "2px dashed #E5E7EB", padding: 15, borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer" },
-  submitBtn: { backgroundColor: "#c0392b", color: "white", padding: 12, borderRadius: 8, border: "none", fontWeight: "bold", cursor: "pointer" },
-  productListSide: { flex: 2, minWidth: 400 },
-  productGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 15 },
+  submitBtn: { backgroundColor: "#c0392b", color: "white", padding: 14, borderRadius: 12, border: "none", fontWeight: "bold", cursor: "pointer", fontSize: "16px" },
+  productListSide: { width: "100%" },
+  productGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 15 },
   productCard: { backgroundColor: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden" },
-  productImageWrapper: { height: 150, backgroundColor: "#F3F4F6" },
+  productImageWrapper: { height: 130, backgroundColor: "#F3F4F6" },
   productImage: { width: "100%", height: "100%", objectFit: "cover" },
   productPrice: { color: "#c0392b", fontWeight: "bold", margin: "5px 0" },
-  deleteBtn: { width: "100%", border: "1px solid #FEE2E2", color: "#EF4444", backgroundColor: "#FEF2F2", padding: 8, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.2s" },
-  actionBtnDisabled: (active) => ({ backgroundColor: active ? "#E5E7EB" : "#F3F4F6", color: active ? "#1F2937" : "#9CA3AF", border: "none", padding: 8, borderRadius: 8, fontWeight: "bold", fontSize: 10, cursor: active ? "pointer" : "not-allowed", opacity: active ? 1 : 0.6, display: "flex", alignItems: "center", gap: 4, justifyContent: "center" }),
+  deleteBtn: { width: "100%", border: "1px solid #FEE2E2", color: "#EF4444", backgroundColor: "#FEF2F2", padding: 10, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontWeight: "bold", fontSize: "13px" },
   emptyState: { textAlign: "center", padding: "60px", backgroundColor: "white", borderRadius: 16, color: "#9CA3AF" },
 };
 
+// Responsive Styles - Media Queries untuk mobile
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
   @keyframes pulse {
@@ -794,44 +839,55 @@ styleSheet.textContent = `
   }
   
   @keyframes slideIn {
-    from {
-      transform: translateX(100%);
-      opacity: 0;
-    }
-    to {
-      transform: translateX(0);
-      opacity: 1;
-    }
-  }
-  
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-  
-  @keyframes scaleIn {
-    from {
-      transform: scale(0.95);
-      opacity: 0;
-    }
-    to {
-      transform: scale(1);
-      opacity: 1;
-    }
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
   }
   
   button:hover {
-    transform: translateY(-1px);
+    transform: translateY(-2px);
   }
   
   button:active {
     transform: translateY(0);
   }
+  
+  /* Mobile Responsive */
+  @media (max-width: 768px) {
+    .styles_tabWrapperDesktop {
+      display: none !important;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .styles_mobileLogoutBtn, .styles_mobileMenuBtn {
+      display: flex !important;
+    }
+    .styles_tabWrapperDesktop {
+      display: none !important;
+    }
+    .styles_mobileMenu {
+      display: flex !important;
+    }
+    .styles_orderActions {
+      flex-direction: column !important;
+    }
+    .styles_inputRow {
+      flex-direction: column !important;
+    }
+  }
 `;
 document.head.appendChild(styleSheet);
+
+// Perbaiki styles dengan menambahkan override untuk responsive
+const responsiveOverride = {
+  '@media (max-width: 768px)': {
+    '.mobileLogoutBtn': { display: 'flex' },
+    '.mobileMenuBtn': { display: 'flex' },
+    '.tabWrapperDesktop': { display: 'none' },
+    '.mobileMenu': { display: 'flex' },
+    '.orderActions': { flexDirection: 'column' },
+    '.inputRow': { flexDirection: 'column' },
+  }
+};
 
 export default AdminPage;
