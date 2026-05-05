@@ -564,18 +564,6 @@ const AdminPage = () => {
                                       color: categoryStyle.color,
                                     }}
                                   >
-                                    {category === "Paket" && (
-                                      <Gift
-                                        size={14}
-                                        style={{ marginRight: 6 }}
-                                      />
-                                    )}
-                                    {category === "Minuman" && (
-                                      <Coffee
-                                        size={14}
-                                        style={{ marginRight: 6 }}
-                                      />
-                                    )}
                                     {category}
                                   </span>
                                   <span
@@ -642,7 +630,6 @@ const AdminPage = () => {
                             );
                           })}
                         </div>
-
                         {hasUndeliveredDrinks(o) &&
                           o.status !== "served" &&
                           o.status !== "paid" && (
