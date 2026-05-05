@@ -170,7 +170,7 @@ const AdminPage = () => {
       await api.put(`/api/orders/${id}/status`, { status: newStatus });
       showAlert(
         "success",
-        `Status pesanan berhasil diupdate menjadi ${newStatus.toUpperCase()}`,
+        `${newStatus.toUpperCase()}`,
       );
     } catch (err) {
       showAlert(
@@ -308,7 +308,7 @@ const AdminPage = () => {
       await api.post("/api/menu", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      showAlert("success", "✅ Menu berhasil ditambahkan!");
+      showAlert("success", "Menu berhasil ditambahkan!");
       setNewProduct({
         name: "",
         price: "",
@@ -323,7 +323,7 @@ const AdminPage = () => {
     } catch (err) {
       showAlert(
         "error",
-        `❌ Gagal menambah menu: ${err.response?.data?.message || err.message}`,
+        `Gagal menambah menu: ${err.response?.data?.message || err.message}`,
       );
     }
   };
@@ -349,12 +349,12 @@ const AdminPage = () => {
     try {
       await api.delete(`/api/menu/${productId}`);
       fetchProducts();
-      showAlert("success", `✅ Menu "${productName}" berhasil dihapus!`);
+      showAlert("success", `Menu "${productName}" berhasil dihapus!`);
       closeDeleteModal();
     } catch (err) {
       showAlert(
         "error",
-        `❌ Gagal menghapus menu: ${err.response?.data?.message || err.message}`,
+        `Gagal menghapus menu: ${err.response?.data?.message || err.message}`,
       );
       closeDeleteModal();
     }
@@ -927,8 +927,15 @@ const AdminPage = () => {
                               }}
                             />
                           </div>
-                          <div style={{ padding: 15 }}>
-                            <h4 style={{ margin: 0, fontSize: 14 }}>
+                          <div style={{ padding: "12px" }}>
+                            <h4
+                              style={{
+                                margin: 0,
+                                fontSize: "14px",
+                                fontWeight: "600",
+                                color: "#1F2937",
+                              }}
+                            >
                               {p.name}
                             </h4>
                             <p style={styles.productPrice}>
@@ -939,7 +946,8 @@ const AdminPage = () => {
                                 style={{
                                   fontSize: 10,
                                   color: "#10B981",
-                                  margin: "4px 0",
+                                  margin: "4px 0 8px 0",
+                                  fontWeight: "500",
                                 }}
                               >
                                 ✓ Include minuman
@@ -1506,25 +1514,46 @@ const styles = {
   productListSide: { width: "100%" },
   productGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-    gap: 15,
+    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+    gap: 20,
   },
   productCard: {
     backgroundColor: "white",
-    borderRadius: 12,
+    borderRadius: 16,
     border: "1px solid #E5E7EB",
     overflow: "hidden",
+    transition: "all 0.2s ease",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+    display: "flex",
+    flexDirection: "column",
   },
-  productImageWrapper: { height: 130, backgroundColor: "#F3F4F6" },
-  productImage: { width: "100%", height: "100%", objectFit: "cover" },
-  productPrice: { color: "#c0392b", fontWeight: "bold", margin: "5px 0" },
+  productImageWrapper: {
+    height: 160,
+    backgroundColor: "#F9FAFB",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  productImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    transition: "transform 0.2s ease",
+  },
+  productPrice: {
+    color: "#c0392b",
+    fontWeight: "bold",
+    margin: "8px 0 4px 0",
+    fontSize: "15px",
+  },
   deleteBtn: {
     width: "100%",
     border: "1px solid #FEE2E2",
     color: "#EF4444",
     backgroundColor: "#FEF2F2",
-    padding: 10,
-    borderRadius: 10,
+    padding: "8px 12px",
+    borderRadius: "10px",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
@@ -1532,6 +1561,8 @@ const styles = {
     gap: 6,
     fontWeight: "bold",
     fontSize: "13px",
+    marginTop: "8px",
+    transition: "all 0.2s",
   },
   emptyState: {
     textAlign: "center",
