@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 
@@ -40,6 +40,10 @@ function OrderMenu() {
   const [showOrderAnimation, setShowOrderAnimation] = useState(false);
   const [animationProgress, setAnimationProgress] = useState(0);
   const [deliveredItems, setDeliveredItems] = useState({});
+  const [activeCategory, setActiveCategory] = useState("Paket");
+
+  // Refs untuk scroll ke kategori
+  const categoryRefs = useRef({});
 
   const clientId = useMemo(() => {
     let id = localStorage.getItem("order_client_id");
@@ -357,7 +361,6 @@ function OrderMenu() {
       await createOrder({ tableNumber, items, totalPrice, token });
       setCart({});
       
-      // Clear cart from localStorage after successful order
       const savedCartKey = `cart_${tableNumber}`;
       localStorage.removeItem(savedCartKey);
 
@@ -373,6 +376,15 @@ function OrderMenu() {
       else alert(err.response?.data?.message || "Gagal membuat pesanan.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Scroll ke kategori tertentu
+  const scrollToCategory = (category) => {
+    setActiveCategory(category);
+    const ref = categoryRefs.current[category];
+    if (ref) {
+      ref.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
 
@@ -580,7 +592,6 @@ function OrderMenu() {
                     <div style={styles.progressGlow} />
                   </div>
                 </div>
-                {/* Persentase dihapus dari sini */}
               </div>
             </div>
 
@@ -656,25 +667,63 @@ function OrderMenu() {
               )}
           </div>
         ) : (
-          <div style={{ padding: "0 20px 100px 20px" }}>
-            {menuByCategory.map(
-              (cat) =>
-                cat.items.length > 0 && (
-                  <div key={cat.name} style={{ marginBottom: "25px" }}>
-                    <h3 style={styles.categoryHeading}>{cat.name}</h3>
-                    {cat.items.map((item) => (
-                      <MenuItem
-                        key={item._id}
-                        item={item}
-                        qty={cart[item._id] || 0}
-                        onAdd={addToCart}
-                        onRemove={removeFromCart}
-                      />
-                    ))}
-                  </div>
-                )
-            )}
-          </div>
+          <>
+            {/* TAB NAVIGATOR KATEGORI - SEPERTI GAMBAR */}
+            <div style={styles.categoryTabs}>
+              {CATEGORIES.map((cat) => {
+                const hasItems = menuByCategory.find(c => c.name === cat)?.items.length > 0;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => scrollToCategory(cat)}
+                    style={{
+                      ...styles.categoryTab,
+                      backgroundColor: activeCategory === cat ? COLORS.orange : "transparent",
+                      color: activeCategory === cat ? "white" : COLORS.textDark,
+                      borderBottom: activeCategory === cat ? `2px solid ${COLORS.orange}` : "2px solid transparent",
+                      opacity: hasItems ? 1 : 0.5,
+                    }}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* MENU PER KATEGORI */}
+            <div style={{ padding: "0 20px 100px 20px" }}>
+              {menuByCategory.map(
+                (cat) =>
+                  cat.items.length > 0 && (
+                    <div
+                      key={cat.name}
+                      ref={(el) => (categoryRefs.current[cat.name] = el)}
+                      style={{ marginBottom: "30px" }}
+                    >
+                      <div style={styles.categoryHeaderWrapper}>
+                        <div style={styles.categoryIcon}>
+                          {cat.name === "Paket" && "📦"}
+                          {cat.name === "Makanan" && "🍽️"}
+                          {cat.name === "Minuman" && "🥤"}
+                          {cat.name === "Cemilan" && "🍪"}
+                        </div>
+                        <h3 style={styles.categoryHeading}>{cat.name}</h3>
+                        <div style={styles.categoryLine} />
+                      </div>
+                      {cat.items.map((item) => (
+                        <MenuItem
+                          key={item._id}
+                          item={item}
+                          qty={cart[item._id] || 0}
+                          onAdd={addToCart}
+                          onRemove={removeFromCart}
+                        />
+                      ))}
+                    </div>
+                  )
+              )}
+            </div>
+          </>
         )}
       </div>
 
@@ -693,7 +742,6 @@ function OrderMenu() {
                 }}
               />
             </div>
-            {/* Persentase di loading animation juga dihapus */}
           </div>
         </div>
       )}
@@ -818,18 +866,58 @@ const styles = {
     borderTopLeftRadius: "35px",
     borderTopRightRadius: "35px",
     marginTop: "-60px",
-    paddingTop: "35px",
+    paddingTop: "20px",
     minHeight: "600px",
     boxShadow: "0 -10px 20px rgba(0,0,0,0.05)",
   },
+  // ================= TAB NAVIGATOR STYLES =================
+  categoryTabs: {
+    display: "flex",
+    justifyContent: "space-around",
+    backgroundColor: "white",
+    padding: "10px 16px",
+    borderBottom: "1px solid #f0f0f0",
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+    backgroundColor: "white",
+  },
+  categoryTab: {
+    flex: 1,
+    textAlign: "center",
+    padding: "10px 0",
+    fontSize: "15px",
+    fontWeight: "600",
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    letterSpacing: "0.5px",
+  },
+  // ================= CATEGORY HEADER STYLES =================
+  categoryHeaderWrapper: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    marginBottom: "15px",
+    marginTop: "10px",
+  },
+  categoryIcon: {
+    fontSize: "22px",
+  },
   categoryHeading: {
-    borderLeft: `5px solid ${COLORS.orange}`,
-    paddingLeft: "15px",
     color: COLORS.orange,
     fontSize: "18px",
     fontWeight: "bold",
-    marginBottom: "18px",
+    margin: 0,
   },
+  categoryLine: {
+    flex: 1,
+    height: "2px",
+    backgroundColor: "#f0f0f0",
+    borderRadius: "2px",
+  },
+  // ================= MENU CARD STYLES =================
   menuCard: {
     display: "flex",
     alignItems: "center",
