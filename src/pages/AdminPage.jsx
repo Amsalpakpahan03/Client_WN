@@ -209,7 +209,6 @@ const AdminPage = () => {
     }
   };
 
-  // ✅ DIPERBAIKI: Semua minuman termasuk dari paket
   const hasUndeliveredDrinks = (order) => {
     return order.items.some(
       (item) => item.category === "Minuman" && item.status !== "served",
@@ -888,80 +887,67 @@ const AdminPage = () => {
             </div>
             <div style={styles.productListSide}>
               <div style={styles.productGrid}>
-                <div style={styles.productListSide}>
-                  <div style={styles.productGrid}>
-                    {products.map((p) => {
-                      // 🔧 BASE URL untuk gambar (SESUAIKAN dengan URL Replit Anda)
-                      const ASSET_URL =
-                        "https://ffba1d81-e43e-4366-a64e-7c28def97c1f-00-1lrc6qdsg3bwb.pike.replit.dev";
-                      let imageUrl = "/no-image.png";
+                {products.map((p) => {
+                  const ASSET_URL =
+                    "https://ffba1d81-e43e-4366-a64e-7c28def97c1f-00-1lrc6qdsg3bwb.pike.replit.dev";
+                  let imageUrl = "/no-image.png";
 
-                      if (p.image_url) {
-                        // Jika image_url sudah URL lengkap
-                        if (p.image_url.startsWith("http")) {
-                          imageUrl = p.image_url;
-                        }
-                        // Jika hanya nama file (seperti menu-1777970421650.jpg)
-                        else {
-                          imageUrl = `${ASSET_URL}/uploads/${p.image_url}`;
-                        }
-                      }
+                  if (p.image_url) {
+                    if (p.image_url.startsWith("http")) {
+                      imageUrl = p.image_url;
+                    } else {
+                      imageUrl = `${ASSET_URL}/uploads/${p.image_url}`;
+                    }
+                  }
 
-                      console.log(
-                        `[DEBUG] ${p.name} - image_url: ${p.image_url} -> ${imageUrl}`,
-                      );
-
-                      return (
-                        <div key={p._id} style={styles.productCard}>
-                          <div style={styles.productImageWrapper}>
-                            <img
-                              src={imageUrl}
-                              style={styles.productImage}
-                              alt={p.name}
-                              onError={(e) => {
-                                console.error(`Gagal load: ${imageUrl}`);
-                                e.target.src = "/no-image.png";
-                              }}
-                            />
-                          </div>
-                          <div style={{ padding: "12px" }}>
-                            <h4
-                              style={{
-                                margin: 0,
-                                fontSize: "14px",
-                                fontWeight: "600",
-                                color: "#1F2937",
-                              }}
-                            >
-                              {p.name}
-                            </h4>
-                            <p style={styles.productPrice}>
-                              Rp {p.price?.toLocaleString()}
-                            </p>
-                            {p.category === "Paket" && p.includesDrinks && (
-                              <p
-                                style={{
-                                  fontSize: 10,
-                                  color: "#10B981",
-                                  margin: "4px 0 8px 0",
-                                  fontWeight: "500",
-                                }}
-                              >
-                                ✓ Include minuman
-                              </p>
-                            )}
-                            <button
-                              style={styles.deleteBtn}
-                              onClick={() => openDeleteModal(p._id, p.name)}
-                            >
-                              <Trash size={14} /> Hapus
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+                  return (
+                    <div key={p._id} style={styles.productCard}>
+                      <div style={styles.productImageWrapper}>
+                        <img
+                          src={imageUrl}
+                          style={styles.productImage}
+                          alt={p.name}
+                          onError={(e) => {
+                            e.target.src = "/no-image.png";
+                          }}
+                        />
+                      </div>
+                      <div style={{ padding: "12px" }}>
+                        <h4
+                          style={{
+                            margin: 0,
+                            fontSize: "14px",
+                            fontWeight: "600",
+                            color: "#1F2937",
+                          }}
+                        >
+                          {p.name}
+                        </h4>
+                        <p style={styles.productPrice}>
+                          Rp {p.price?.toLocaleString()}
+                        </p>
+                        {p.category === "Paket" && p.includesDrinks && (
+                          <p
+                            style={{
+                              fontSize: 10,
+                              color: "#10B981",
+                              margin: "4px 0 8px 0",
+                              fontWeight: "500",
+                            }}
+                          >
+                            ✓ Include minuman
+                          </p>
+                        )}
+                        <button
+                          style={styles.deleteBtn}
+                          onClick={() => openDeleteModal(p._id, p.name)}
+                        >
+                          <Trash size={14} /> Hapus
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -1406,8 +1392,20 @@ const styles = {
 
   productFlex: {
     display: "flex",
-    flexDirection: "column", // ← column agar form di atas, menu di bawah
+    flexDirection: "column",
     gap: 30,
+  },
+  productFormSide: {
+    width: "100%",
+  },
+  productListSide: {
+    width: "100%",
+  },
+  formCard: {
+    backgroundColor: "white",
+    padding: 20,
+    borderRadius: 16,
+    border: "1px solid #E5E7EB",
   },
   formTitle: {
     margin: "0 0 20px 0",
@@ -1505,11 +1503,9 @@ const styles = {
     marginTop: "8px",
   },
 
-  productListSide: { width: "100%" },
-  
   productGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", // ← grid ke samping
+    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
     gap: 20,
   },
   productCard: {
