@@ -47,16 +47,14 @@ const AdminLogin = () => {
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={styles.header}>
-          <div style={styles.icon}></div>
-          <h1 style={styles.title}>Admin Login</h1>
-          <p style={styles.subtitle}>Warung Ndeso Management System</p>
+          <h1 style={styles.title}>Admin</h1>
+          <p style={styles.subtitle}>Manajemen Sistem Warung Ndeso</p>
         </div>
 
         <form onSubmit={handleSubmit} style={styles.form}>
           <div style={styles.inputGroup}>
             <label style={styles.label}>Username</label>
             <div style={styles.inputWrapper}>
-              <span style={styles.inputIcon}></span>
               <input
                 type="text"
                 style={styles.input}
@@ -71,7 +69,6 @@ const AdminLogin = () => {
           <div style={styles.inputGroup}>
             <label style={styles.label}>Password</label>
             <div style={styles.inputWrapper}>
-              <span style={styles.inputIcon}></span>
               <input
                 type="password"
                 style={styles.input}
@@ -85,7 +82,6 @@ const AdminLogin = () => {
 
           {error && (
             <div style={styles.errorAlert}>
-              <span style={styles.errorIcon}></span>
               <span>{error}</span>
             </div>
           )}
@@ -102,10 +98,7 @@ const AdminLogin = () => {
             <p style={styles.infoText}>
               <strong>Info Demo:</strong><br />
               Username: admin<br />
-              Password: admin123<br />
-              <span style={{fontSize: "11px", color: "#999"}}>
-                *Session per tab, buka tab baru perlu login lagi
-              </span>
+              Password: admin123
             </p>
           </div>
         </form>
@@ -120,7 +113,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    backgroundColor: "#f3ca58", // WARNA KUNING SEPERTI YELLOW HEADER
     padding: "20px",
   },
   card: {
@@ -129,21 +122,17 @@ const styles = {
     padding: "40px",
     width: "100%",
     maxWidth: "420px",
-    boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
     animation: "fadeInUp 0.5s ease",
   },
   header: {
     textAlign: "center",
     marginBottom: "30px",
   },
-  icon: {
-    fontSize: "64px",
-    marginBottom: "10px",
-  },
   title: {
     fontSize: "28px",
     fontWeight: "700",
-    color: "#333",
+    color: "#c0392b",
     marginBottom: "8px",
   },
   subtitle: {
@@ -168,17 +157,9 @@ const styles = {
   inputWrapper: {
     position: "relative",
   },
-  inputIcon: {
-    position: "absolute",
-    left: "12px",
-    top: "50%",
-    transform: "translateY(-50%)",
-    fontSize: "18px",
-    color: "#999",
-  },
   input: {
     width: "100%",
-    padding: "12px 16px 12px 42px",
+    padding: "12px 16px",
     border: "1px solid #ddd",
     borderRadius: "10px",
     fontSize: "14px",
@@ -204,12 +185,7 @@ const styles = {
     padding: "10px",
     borderRadius: "8px",
     fontSize: "13px",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  },
-  errorIcon: {
-    fontSize: "16px",
+    textAlign: "center",
   },
   infoBox: {
     backgroundColor: "#f8f9fa",
@@ -237,6 +213,20 @@ styleSheet.textContent = `
       opacity: 1;
       transform: translateY(0);
     }
+  }
+  
+  input:focus {
+    border-color: #c0392b;
+    box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.1);
+  }
+  
+  button:hover {
+    background-color: #a82315;
+    transform: translateY(-2px);
+  }
+  
+  button:active {
+    transform: translateY(0);
   }
 `;
 document.head.appendChild(styleSheet);
