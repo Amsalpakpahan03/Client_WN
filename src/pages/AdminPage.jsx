@@ -876,7 +876,7 @@ const AdminPage = () => {
               <div style={styles.productGrid}>
                 {products.map((p) => {
                   const ASSET_URL =
-                    "http://103.123.19.59:5000";
+                    process.env.REACT_APP_API_URL || "http://localhost:5000";
                   let imageUrl = "/no-image.png";
 
                   if (p.image_url) {

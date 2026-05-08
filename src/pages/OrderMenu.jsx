@@ -765,7 +765,7 @@ function OrderMenu() {
 
 // ================= MENU ITEM COMPONENT (DIPERBAIKI DENGAN TIMESTAMP) =================
 const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
-  const ASSET_URL = "http://103.123.19.59:5000";
+  const ASSET_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
   
   // Timestamp untuk force refresh gambar (menghindari cache HP)
   const timestamp = new Date().getTime();
