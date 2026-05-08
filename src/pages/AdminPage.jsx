@@ -876,7 +876,7 @@ const AdminPage = () => {
               <div style={styles.productGrid}>
                 {products.map((p) => {
                   const ASSET_URL =
-                    "https://ffba1d81-e43e-4366-a64e-7c28def97c1f-00-1lrc6qdsg3bwb.pike.replit.dev";
+                    "http://103.123.19.59:5000";
                   let imageUrl = "/no-image.png";
 
                   if (p.image_url) {

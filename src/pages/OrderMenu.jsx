@@ -765,7 +765,7 @@ function OrderMenu() {
 
 // ================= MENU ITEM COMPONENT (DIPERBAIKI DENGAN TIMESTAMP) =================
 const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
-  const ASSET_URL = "https://ffba1d81-e43e-4366-a64e-7c28def97c1f-00-1lrc6qdsg3bwb.pike.replit.dev";
+  const ASSET_URL = "http://103.123.19.59:5000";
   
   // Timestamp untuk force refresh gambar (menghindari cache HP)
   const timestamp = new Date().getTime();
