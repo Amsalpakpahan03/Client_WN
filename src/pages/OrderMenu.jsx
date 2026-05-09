@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 
@@ -22,7 +28,7 @@ function OrderMenu() {
   const location = useLocation();
   const query = useMemo(
     () => new URLSearchParams(location.search),
-    [location.search]
+    [location.search],
   );
   const tableNumber = query.get("table");
 
@@ -99,7 +105,11 @@ function OrderMenu() {
 
   // Save delivered items to localStorage
   useEffect(() => {
-    if (tableNumber && activeOrder?._id && Object.keys(deliveredItems).length > 0) {
+    if (
+      tableNumber &&
+      activeOrder?._id &&
+      Object.keys(deliveredItems).length > 0
+    ) {
       const savedDeliveredKey = `delivered_${tableNumber}_${activeOrder._id}`;
       localStorage.setItem(savedDeliveredKey, JSON.stringify(deliveredItems));
     }
@@ -130,7 +140,7 @@ function OrderMenu() {
       const savedCartKey = `cart_${tableNumber}`;
       const savedDeliveredKey = `delivered_${tableNumber}_${activeOrder._id}`;
       const savedProgressKey = `progress_${tableNumber}_${activeOrder._id}`;
-      
+
       localStorage.removeItem(savedCartKey);
       localStorage.removeItem(savedDeliveredKey);
       localStorage.removeItem(savedProgressKey);
@@ -145,11 +155,11 @@ function OrderMenu() {
         : [];
     const totalItems = items.length;
     const deliveredCount = items.filter(
-      (item) => item?.name && deliveredItems[item.name]?.delivered
+      (item) => item?.name && deliveredItems[item.name]?.delivered,
     ).length;
     const drinkItems = items.filter((item) => item?.category === "Minuman");
     const drinkDelivered = drinkItems.filter(
-      (item) => item?.name && deliveredItems[item.name]?.delivered
+      (item) => item?.name && deliveredItems[item.name]?.delivered,
     ).length;
 
     return {
@@ -309,174 +319,174 @@ function OrderMenu() {
 
   // Fungsi untuk mendapatkan minuman dari paket
   const getPackageDrinks = (packageItem) => {
-    if (!packageItem.includesDrinks || !packageItem.includedDrinkIds || !Array.isArray(packageItem.includedDrinkIds)) {
+    if (
+      !packageItem.includesDrinks ||
+      !packageItem.includedDrinkIds ||
+      !Array.isArray(packageItem.includedDrinkIds)
+    ) {
       return [];
     }
-    return menuItems.filter(item => 
-      item.category === "Minuman" && 
-      packageItem.includedDrinkIds.includes(item._id)
+    return menuItems.filter(
+      (item) =>
+        item.category === "Minuman" &&
+        packageItem.includedDrinkIds.includes(item._id),
     );
   };
 
-  const addToCart = useCallback((item) => {
-    setCart((prev) => {
-      const newCart = { ...prev };
-      
-      // Jika item adalah paket dengan minuman
-      if (item.category === "Paket" && item.includesDrinks) {
-        // Tambahkan paket
-        newCart[item._id] = (newCart[item._id] || 0) + 1;
-        
-        // Tambahkan semua minuman terkait dengan key unik
-        const packageDrinks = getPackageDrinks(item);
-        packageDrinks.forEach(drink => {
-          const packageKey = `${drink._id}_package_${item._id}`;
-          newCart[packageKey] = (newCart[packageKey] || 0) + 1;
-        });
-      } else {
-        // Item biasa
-        newCart[item._id] = (newCart[item._id] || 0) + 1;
-      }
-      
-      return newCart;
-    });
-  }, [menuItems]);
+  const addToCart = useCallback(
+    (item) => {
+      setCart((prev) => {
+        const newCart = { ...prev };
 
-  const removeFromCart = useCallback((item) => {
-    setCart((prev) => {
-      const newCart = { ...prev };
-      
-      // Jika item adalah paket dengan minuman
-      if (item.category === "Paket" && item.includesDrinks) {
-        // Kurangi paket
-        const packageQty = newCart[item._id] || 0;
-        if (packageQty <= 1) {
-          delete newCart[item._id];
+        // Jika item adalah paket dengan minuman
+        if (item.category === "Paket" && item.includesDrinks) {
+          // Tambahkan paket
+          newCart[item._id] = (newCart[item._id] || 0) + 1;
+
+          // Tambahkan semua minuman terkait dengan key unik
+          const packageDrinks = getPackageDrinks(item);
+          packageDrinks.forEach((drink) => {
+            const packageKey = `${drink._id}_package_${item._id}`;
+            newCart[packageKey] = (newCart[packageKey] || 0) + 1;
+          });
         } else {
-          newCart[item._id] = packageQty - 1;
+          // Item biasa
+          newCart[item._id] = (newCart[item._id] || 0) + 1;
         }
-        
-        // Kurangi semua minuman terkait
-        const packageDrinks = getPackageDrinks(item);
-        packageDrinks.forEach(drink => {
-          const packageKey = `${drink._id}_package_${item._id}`;
-          const drinkQty = newCart[packageKey] || 0;
-          if (drinkQty <= 1) {
-            delete newCart[packageKey];
+
+        return newCart;
+      });
+    },
+    [menuItems],
+  );
+
+  const removeFromCart = useCallback(
+    (item) => {
+      setCart((prev) => {
+        const newCart = { ...prev };
+
+        // Jika item adalah paket dengan minuman
+        if (item.category === "Paket" && item.includesDrinks) {
+          // Kurangi paket
+          const packageQty = newCart[item._id] || 0;
+          if (packageQty <= 1) {
+            delete newCart[item._id];
           } else {
-            newCart[packageKey] = drinkQty - 1;
+            newCart[item._id] = packageQty - 1;
           }
-        });
-      } else {
-        // Item biasa
-        const qty = newCart[item._id] || 0;
-        if (qty <= 1) {
-          delete newCart[item._id];
+
+          // Kurangi semua minuman terkait
+          const packageDrinks = getPackageDrinks(item);
+          packageDrinks.forEach((drink) => {
+            const packageKey = `${drink._id}_package_${item._id}`;
+            const drinkQty = newCart[packageKey] || 0;
+            if (drinkQty <= 1) {
+              delete newCart[packageKey];
+            } else {
+              newCart[packageKey] = drinkQty - 1;
+            }
+          });
         } else {
-          newCart[item._id] = qty - 1;
+          // Item biasa
+          const qty = newCart[item._id] || 0;
+          if (qty <= 1) {
+            delete newCart[item._id];
+          } else {
+            newCart[item._id] = qty - 1;
+          }
         }
-      }
-      
-      return newCart;
-    });
-  }, [menuItems]);
+
+        return newCart;
+      });
+    },
+    [menuItems],
+  );
 
   const totalPrice = useMemo(() => {
     if (!Array.isArray(menuItems) || menuItems.length === 0) return 0;
     return Object.entries(cart).reduce((sum, [itemId, qty]) => {
       // Skip items yang merupakan minuman dari paket (key mengandung '_package_')
-      if (itemId.includes('_package_')) {
+      if (itemId.includes("_package_")) {
         return sum;
       }
-      
-      const item = menuItems.find(m => m._id === itemId);
+
+      const item = menuItems.find((m) => m._id === itemId);
       if (item && item.price) {
-        return sum + (qty * item.price);
+        return sum + qty * item.price;
       }
       return sum;
     }, 0);
   }, [cart, menuItems]);
 
-const handleOrder = async () => {
-  const token = localStorage.getItem("order_token");
-  if (!token || isTokenExpired(token)) {
-    handleSessionExpired();
-    return;
-  }
-  if (Object.keys(cart).length === 0) {
-    alert("Silakan pilih menu terlebih dahulu");
-    return;
-  }
+  const handleOrder = async () => {
+    const token = localStorage.getItem("order_token");
+    if (!token || isTokenExpired(token)) {
+      handleSessionExpired();
+      return;
+    }
+    if (Object.keys(cart).length === 0) {
+      alert("Silakan pilih menu terlebih dahulu");
+      return;
+    }
 
-  // 🔥 PERBAIKAN: Kirim productId untuk setiap item
-  const items = [];
-  
-  for (const [itemId, qty] of Object.entries(cart)) {
-    // Jika key mengandung '_package_', ini adalah minuman dari paket
-    if (itemId.includes('_package_')) {
-      const [drinkId, , packageId] = itemId.split('_package_');
-      const drinkItem = menuItems.find(m => m._id === drinkId);
-      const packageItem = menuItems.find(m => m._id === packageId);
-      
-      if (drinkItem) {
-        items.push({
-          productId: drinkItem._id,  // ✅ TAMBAHKAN productId
-          name: drinkItem.name,
-          description: drinkItem.description || "",
-          quantity: qty,
-          price: 0, // Minuman dari paket gratis
-          category: drinkItem.category,
-          status: "pending",
-          isIncludedInPackage: true,
-          packageName: packageItem ? packageItem.name : "Paket",
-        });
+    // 🔥 PERBAIKAN: Hanya kirim item ASLI, SKIP minuman dari paket
+    const items = [];
+
+    for (const [itemId, qty] of Object.entries(cart)) {
+      // SKIP semua minuman dari paket (key mengandung '_package_')
+      if (itemId.includes("_package_")) {
+        continue; // ← JANGAN kirim ke server, biar server yang handle
       }
-    } else {
-      // Item biasa (bukan minuman dari paket)
-      const item = menuItems.find(m => m._id === itemId);
+
+      // Hanya kirim item asli (paket atau menu biasa)
+      const item = menuItems.find((m) => m._id === itemId);
       if (item) {
         items.push({
-          productId: item._id,  // ✅ TAMBAHKAN productId
+          productId: item._id,
           name: item.name,
           description: item.description || "",
           quantity: qty,
           price: item.price,
           category: item.category,
           status: "pending",
+          // Kirim info paket agar server tahu ini paket yang include minuman
+          includesDrinks: item.includesDrinks || false,
+          includedDrinkIds: item.includedDrinkIds || [],
         });
       }
     }
-  }
 
-  console.log("📦 Items with productId:", JSON.stringify(items, null, 2));
+    console.log(
+      "📦 Items yang dikirim ke server (tanpa minuman duplikat):",
+      JSON.stringify(items, null, 2),
+    );
 
-  setIsSubmitting(true);
-  setShowOrderAnimation(true);
-  setAnimationProgress(0);
+    setIsSubmitting(true);
+    setShowOrderAnimation(true);
+    setAnimationProgress(0);
 
-  try {
-    await createOrder({ tableNumber, items, totalPrice, token });
-    setCart({});
-    
-    // Clear cart from localStorage after successful order
-    const savedCartKey = `cart_${tableNumber}`;
-    localStorage.removeItem(savedCartKey);
+    try {
+      await createOrder({ tableNumber, items, totalPrice, token });
+      setCart({});
 
-    for (let i = 0; i <= 100; i += 5) {
-      await new Promise((resolve) => setTimeout(resolve, 30));
-      setAnimationProgress(i);
+      // Clear cart from localStorage after successful order
+      const savedCartKey = `cart_${tableNumber}`;
+      localStorage.removeItem(savedCartKey);
+
+      for (let i = 0; i <= 100; i += 5) {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        setAnimationProgress(i);
+      }
+
+      setTimeout(() => setShowOrderAnimation(false), 500);
+    } catch (err) {
+      setShowOrderAnimation(false);
+      if (err.response?.status === 401) handleSessionExpired();
+      else alert(err.response?.data?.message || "Gagal membuat pesanan.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setTimeout(() => setShowOrderAnimation(false), 500);
-  } catch (err) {
-    setShowOrderAnimation(false);
-    if (err.response?.status === 401) handleSessionExpired();
-    else alert(err.response?.data?.message || "Gagal membuat pesanan.");
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-
+  };
   // Fungsi scroll ke kategori
   const scrollToCategory = (category) => {
     setActiveCategory(category);
@@ -638,8 +648,10 @@ const handleOrder = async () => {
                   <div
                     style={{
                       ...styles.statusChip,
-                      backgroundColor: getStatusInfo(activeOrder.status)?.bg || "#f8f9fa",
-                      color: getStatusInfo(activeOrder.status)?.color || "#7f8c8d",
+                      backgroundColor:
+                        getStatusInfo(activeOrder.status)?.bg || "#f8f9fa",
+                      color:
+                        getStatusInfo(activeOrder.status)?.color || "#7f8c8d",
                     }}
                   >
                     {getStatusInfo(activeOrder.status)?.text || "Menunggu"}
@@ -650,7 +662,8 @@ const handleOrder = async () => {
               <div style={styles.progressWrapper}>
                 <div style={styles.progressSteps}>
                   {["pending", "cooking", "served"].map((stepStatus, idx) => {
-                    const safeProgress = typeof orderProgress === 'number' ? orderProgress : 0;
+                    const safeProgress =
+                      typeof orderProgress === "number" ? orderProgress : 0;
                     const isActive = safeProgress >= (idx + 1) * 33;
                     const isCurrent = activeOrder.status === stepStatus;
                     const stepInfo = getStatusInfo(stepStatus);
@@ -659,9 +672,13 @@ const handleOrder = async () => {
                         <div
                           style={{
                             ...styles.progressDot,
-                            backgroundColor: isActive ? COLORS.orange : "#e0e0e0",
+                            backgroundColor: isActive
+                              ? COLORS.orange
+                              : "#e0e0e0",
                             transform: isCurrent ? "scale(1.2)" : "scale(1)",
-                            boxShadow: isCurrent ? `0 0 0 3px ${COLORS.orange}40` : "none",
+                            boxShadow: isCurrent
+                              ? `0 0 0 3px ${COLORS.orange}40`
+                              : "none",
                           }}
                         >
                           {isActive && <div style={styles.progressDotInner} />}
@@ -683,7 +700,7 @@ const handleOrder = async () => {
                   <div
                     style={{
                       ...styles.progressBarFill,
-                      width: `${typeof orderProgress === 'number' ? orderProgress : 0}%`,
+                      width: `${typeof orderProgress === "number" ? orderProgress : 0}%`,
                       transition: "width 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
                     }}
                   >
@@ -699,7 +716,8 @@ const handleOrder = async () => {
                 activeOrder.items.map((item, idx) => {
                   if (!item || typeof item !== "object") return null;
 
-                  const isDelivered = deliveredItems[item.name]?.delivered === true;
+                  const isDelivered =
+                    deliveredItems[item.name]?.delivered === true;
                   const deliveredData = deliveredItems[item.name];
                   const isDrink = item.category === "Minuman";
 
@@ -713,25 +731,34 @@ const handleOrder = async () => {
                           {item.name || "Unknown"}
                           {isDelivered && (
                             <span style={styles.deliveredBadge}>
-                              <span style={styles.checkIcon}>✓</span> Sudah Diantar
+                              <span style={styles.checkIcon}>✓</span> Sudah
+                              Diantar
                             </span>
                           )}
                           {!isDelivered &&
                             isDrink &&
                             activeOrder.status === "cooking" && (
                               <span style={styles.preparingBadge}>
-                                <span style={styles.clockIcon}>⏱️</span> Sedang Disiapkan
+                                <span style={styles.clockIcon}>⏱️</span> Sedang
+                                Disiapkan
                               </span>
                             )}
                         </span>
                       </div>
                       <div style={styles.orderItemRight}>
-                        <span style={{ fontWeight: "bold", color: COLORS.orange }}>
-                          Rp {((item.price || 0) * (item.quantity || 0)).toLocaleString()}
+                        <span
+                          style={{ fontWeight: "bold", color: COLORS.orange }}
+                        >
+                          Rp{" "}
+                          {(
+                            (item.price || 0) * (item.quantity || 0)
+                          ).toLocaleString()}
                         </span>
                         {isDelivered && deliveredData?.deliveredAt && (
                           <div style={styles.deliveredTime}>
-                            {new Date(deliveredData.deliveredAt).toLocaleTimeString([], {
+                            {new Date(
+                              deliveredData.deliveredAt,
+                            ).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
@@ -769,7 +796,8 @@ const handleOrder = async () => {
             {/* TOMBOL NAVIGASI KATEGORI */}
             <div style={styles.categoryNav}>
               {CATEGORIES.map((cat) => {
-                const hasItems = menuByCategory.find(c => c.name === cat)?.items.length > 0;
+                const hasItems =
+                  menuByCategory.find((c) => c.name === cat)?.items.length > 0;
                 if (!hasItems) return null;
                 return (
                   <button
@@ -777,7 +805,8 @@ const handleOrder = async () => {
                     onClick={() => scrollToCategory(cat)}
                     style={{
                       ...styles.navButton,
-                      backgroundColor: activeCategory === cat ? COLORS.orange : "#f5f5f5",
+                      backgroundColor:
+                        activeCategory === cat ? COLORS.orange : "#f5f5f5",
                       color: activeCategory === cat ? "#fff" : COLORS.textDark,
                     }}
                   >
@@ -808,7 +837,7 @@ const handleOrder = async () => {
                         />
                       ))}
                     </div>
-                  )
+                  ),
               )}
             </div>
           </>
@@ -851,7 +880,11 @@ const handleOrder = async () => {
             onClick={handleOrder}
             disabled={isSubmitting}
           >
-            {isSubmitting ? <div style={styles.buttonSpinner} /> : "PESAN SEKARANG"}
+            {isSubmitting ? (
+              <div style={styles.buttonSpinner} />
+            ) : (
+              "PESAN SEKARANG"
+            )}
           </button>
         </div>
       )}
@@ -863,10 +896,10 @@ const handleOrder = async () => {
 // ================= MENU ITEM COMPONENT (DIPERBAIKI DENGAN TIMESTAMP) =================
 const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
   const ASSET_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
-  
+
   // Timestamp untuk force refresh gambar (menghindari cache HP)
   const timestamp = new Date().getTime();
-  
+
   if (!item) return null;
 
   const getImageUrl = () => {
@@ -875,7 +908,7 @@ const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
     }
     if (item.image_url.startsWith("http")) {
       // Hapus timestamp lama jika ada
-      const baseUrl = item.image_url.split('?')[0];
+      const baseUrl = item.image_url.split("?")[0];
       return `${baseUrl}?t=${timestamp}`;
     }
     return `${ASSET_URL}/uploads/${item.image_url}?t=${timestamp}`;
@@ -895,13 +928,19 @@ const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
       />
       <div style={styles.menuInfo}>
         <div style={styles.menuName}>{item.name || "Unknown"}</div>
-        {item.description && <div style={styles.menuDesc}>{item.description}</div>}
-        <div style={styles.menuPrice}>Rp {(item.price || 0).toLocaleString()}</div>
+        {item.description && (
+          <div style={styles.menuDesc}>{item.description}</div>
+        )}
+        <div style={styles.menuPrice}>
+          Rp {(item.price || 0).toLocaleString()}
+        </div>
       </div>
       <div style={styles.menuAction}>
         {qty > 0 ? (
           <div style={styles.qtyWrapper}>
-            <button style={styles.qtyBtnSmall} onClick={() => onRemove(item)}>−</button>
+            <button style={styles.qtyBtnSmall} onClick={() => onRemove(item)}>
+              −
+            </button>
             <span
               style={{
                 fontWeight: "bold",
@@ -912,7 +951,9 @@ const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
             >
               {qty}
             </span>
-            <button style={styles.qtyBtnSmall} onClick={() => onAdd(item)}>+</button>
+            <button style={styles.qtyBtnSmall} onClick={() => onAdd(item)}>
+              +
+            </button>
           </div>
         ) : (
           <button
