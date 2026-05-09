@@ -76,17 +76,21 @@ export const useOrder = (tableNumber) => {
       const finalTableNumber = String(tableNumber).trim();
       console.log("[ORDER] Final tableNumber value:", finalTableNumber);
       
-      // Format payload untuk backend (PASTIKAN tableNumber selalu ada)
+      // 🔥 PERBAIKAN: Format payload dengan productId
       const items = (payload.items || []).map(item => ({
+        productId: item.productId || null,  // ← INI YANG PENTING!
         name: item.name || "Unknown",
         quantity: Number(item.quantity) || 0,
         price: Number(item.price) || 0,
         category: item.category || "Lainnya",
-        status: item.status || "pending"
+        status: item.status || "pending",
+        description: item.description || "",
+        isIncludedInPackage: item.isIncludedInPackage || false,
+        packageName: item.packageName || null
       }));
       
       const finalPayload = {
-        tableNumber: finalTableNumber,  // ← PASTIKAN INI TERKIRIM
+        tableNumber: finalTableNumber,
         items: items,
         totalPrice: Number(payload.totalPrice || 0)
       };
@@ -94,8 +98,8 @@ export const useOrder = (tableNumber) => {
       console.log("[ORDER] ========== FINAL PAYLOAD ==========");
       console.log("[ORDER] tableNumber:", finalPayload.tableNumber);
       console.log("[ORDER] items count:", finalPayload.items.length);
+      console.log("[ORDER] Items with productId:", JSON.stringify(finalPayload.items, null, 2));
       console.log("[ORDER] totalPrice:", finalPayload.totalPrice);
-      console.log("[ORDER] Full payload:", JSON.stringify(finalPayload, null, 2));
       
       // Panggil API create order
       const res = await OrderAPI.create(finalPayload);
