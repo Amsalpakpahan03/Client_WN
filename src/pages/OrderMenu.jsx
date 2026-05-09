@@ -397,79 +397,85 @@ function OrderMenu() {
     }, 0);
   }, [cart, menuItems]);
 
-  const handleOrder = async () => {
-    const token = localStorage.getItem("order_token");
-    if (!token || isTokenExpired(token)) {
-      handleSessionExpired();
-      return;
-    }
-    if (Object.keys(cart).length === 0) {
-      alert("Silakan pilih menu terlebih dahulu");
-      return;
-    }
+const handleOrder = async () => {
+  const token = localStorage.getItem("order_token");
+  if (!token || isTokenExpired(token)) {
+    handleSessionExpired();
+    return;
+  }
+  if (Object.keys(cart).length === 0) {
+    alert("Silakan pilih menu terlebih dahulu");
+    return;
+  }
 
-    const items = Object.entries(cart).map(([itemId, qty]) => {
-      // Jika key mengandung '_package_', ini adalah minuman dari paket
-      if (itemId.includes('_package_')) {
-        const [drinkId, , packageId] = itemId.split('_package_');
-        const drinkItem = menuItems.find(m => m._id === drinkId);
-        const packageItem = menuItems.find(m => m._id === packageId);
-        
-        if (drinkItem) {
-          return {
-            name: drinkItem.name,
-            description: drinkItem.description,
-            quantity: qty,
-            price: 0, // Minuman dari paket gratis
-            category: drinkItem.category,
-            status: "pending",
-            isIncludedInPackage: true,
-            packageName: packageItem ? packageItem.name : "Paket",
-          };
-        }
-      } else {
-        // Item biasa
-        const item = menuItems.find(m => m._id === itemId);
-        if (item) {
-          return {
-            name: item.name,
-            description: item.description,
-            quantity: qty,
-            price: item.price,
-            category: item.category,
-            status: "pending",
-          };
-        }
-      }
-      return null;
-    }).filter(Boolean);
-
-    setIsSubmitting(true);
-    setShowOrderAnimation(true);
-    setAnimationProgress(0);
-
-    try {
-      await createOrder({ tableNumber, items, totalPrice, token });
-      setCart({});
+  // 🔥 PERBAIKAN: Kirim productId untuk setiap item
+  const items = [];
+  
+  for (const [itemId, qty] of Object.entries(cart)) {
+    // Jika key mengandung '_package_', ini adalah minuman dari paket
+    if (itemId.includes('_package_')) {
+      const [drinkId, , packageId] = itemId.split('_package_');
+      const drinkItem = menuItems.find(m => m._id === drinkId);
+      const packageItem = menuItems.find(m => m._id === packageId);
       
-      // Clear cart from localStorage after successful order
-      const savedCartKey = `cart_${tableNumber}`;
-      localStorage.removeItem(savedCartKey);
-
-      for (let i = 0; i <= 100; i += 5) {
-        await new Promise((resolve) => setTimeout(resolve, 30));
-        setAnimationProgress(i);
+      if (drinkItem) {
+        items.push({
+          productId: drinkItem._id,  // ✅ TAMBAHKAN productId
+          name: drinkItem.name,
+          description: drinkItem.description || "",
+          quantity: qty,
+          price: 0, // Minuman dari paket gratis
+          category: drinkItem.category,
+          status: "pending",
+          isIncludedInPackage: true,
+          packageName: packageItem ? packageItem.name : "Paket",
+        });
       }
-
-      setTimeout(() => setShowOrderAnimation(false), 500);
-    } catch (err) {
-      setShowOrderAnimation(false);
-      if (err.response?.status === 401) handleSessionExpired();
-      else alert(err.response?.data?.message || "Gagal membuat pesanan.");
-    } finally {
-      setIsSubmitting(false);
+    } else {
+      // Item biasa (bukan minuman dari paket)
+      const item = menuItems.find(m => m._id === itemId);
+      if (item) {
+        items.push({
+          productId: item._id,  // ✅ TAMBAHKAN productId
+          name: item.name,
+          description: item.description || "",
+          quantity: qty,
+          price: item.price,
+          category: item.category,
+          status: "pending",
+        });
+      }
     }
-  };
+  }
+
+  console.log("📦 Items with productId:", JSON.stringify(items, null, 2));
+
+  setIsSubmitting(true);
+  setShowOrderAnimation(true);
+  setAnimationProgress(0);
+
+  try {
+    await createOrder({ tableNumber, items, totalPrice, token });
+    setCart({});
+    
+    // Clear cart from localStorage after successful order
+    const savedCartKey = `cart_${tableNumber}`;
+    localStorage.removeItem(savedCartKey);
+
+    for (let i = 0; i <= 100; i += 5) {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      setAnimationProgress(i);
+    }
+
+    setTimeout(() => setShowOrderAnimation(false), 500);
+  } catch (err) {
+    setShowOrderAnimation(false);
+    if (err.response?.status === 401) handleSessionExpired();
+    else alert(err.response?.data?.message || "Gagal membuat pesanan.");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   // Fungsi scroll ke kategori
   const scrollToCategory = (category) => {
