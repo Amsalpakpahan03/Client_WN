@@ -302,6 +302,20 @@ const AdminPage = () => {
     }
   };
 
+  // Fungsi untuk mendapatkan style kartu pesanan berdasarkan status
+  const getOrderCardStyle = (status) => {
+    if (status === "paid") {
+      return {
+        ...styles.orderCard,
+        opacity: 0.6,
+        filter: "grayscale(0.7)",
+        backgroundColor: "#F3F4F6",
+        border: "1px solid #D1D5DB",
+      };
+    }
+    return styles.orderCard;
+  };
+
   const handleSelectImage = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -526,9 +540,10 @@ const AdminPage = () => {
                 const expandedItems = expandPackageItems(o.items || []);
                 const groupedItems = groupItemsByCategory(expandedItems);
                 const categories = Object.keys(groupedItems);
+                const isPaid = o.status === "paid";
 
                 return (
-                  <div key={o._id} style={styles.orderCard}>
+                  <div key={o._id} style={getOrderCardStyle(o.status)}>
                     <div style={styles.orderCardContent}>
                       <div style={{ flex: 1 }}>
                         <div style={styles.orderHeader}>
@@ -551,7 +566,7 @@ const AdminPage = () => {
                             </span>
                           </div>
 
-                          <div style={styles.tableNumberWrapper}>
+                          <div style={isPaid ? styles.tableNumberWrapperDisabled : styles.tableNumberWrapper}>
                             <span style={styles.tableNumberLabel}>Meja</span>
                             <span style={styles.tableNumberValue}>
                               {o.tableNumber}
@@ -566,6 +581,8 @@ const AdminPage = () => {
                           >
                             {o.status === "pending"
                               ? "🔔 BARU"
+                              : o.status === "paid"
+                              ? "✅ SELESAI"
                               : o.status.toUpperCase()}
                           </span>
                         </div>
@@ -578,7 +595,10 @@ const AdminPage = () => {
                             return (
                               <div
                                 key={category}
-                                style={styles.categorySection}
+                                style={{
+                                  ...styles.categorySection,
+                                  opacity: isPaid ? 0.7 : 1,
+                                }}
                               >
                                 <div
                                   style={{
@@ -664,7 +684,7 @@ const AdminPage = () => {
                             );
                           })}
                         </div>
-                        {hasUndeliveredDrinks(o) &&
+                        {!isPaid && hasUndeliveredDrinks(o) &&
                           o.status !== "served" &&
                           o.status !== "paid" && (
                             <button
@@ -679,44 +699,53 @@ const AdminPage = () => {
                           <span style={styles.orderId}>
                             #{o._id.slice(-6).toUpperCase()}
                           </span>
-                          <span style={styles.orderTotal}>
+                          <span style={isPaid ? styles.orderTotalPaid : styles.orderTotal}>
                             Rp {o.totalPrice?.toLocaleString()}
                           </span>
                         </div>
                       </div>
 
-                      <div style={styles.orderActions}>
-                        <button
-                          disabled={o.status !== "pending"}
-                          style={styles.actionBtn(
-                            o.status === "pending",
-                            "#F59E0B",
-                          )}
-                          onClick={() => handleUpdateStatus(o._id, "cooking")}
-                        >
-                          <Utensils size={16} /> Masak
-                        </button>
-                        <button
-                          disabled={o.status !== "cooking"}
-                          style={styles.actionBtn(
-                            o.status === "cooking",
-                            "#3B82F6",
-                          )}
-                          onClick={() => handleUpdateStatus(o._id, "served")}
-                        >
-                          Antar Semua
-                        </button>
-                        <button
-                          disabled={o.status !== "served"}
-                          style={styles.actionBtn(
-                            o.status === "served",
-                            "#10B981",
-                          )}
-                          onClick={() => handleUpdateStatus(o._id, "paid")}
-                        >
-                          Lunas
-                        </button>
-                      </div>
+                      {!isPaid && (
+                        <div style={styles.orderActions}>
+                          <button
+                            disabled={o.status !== "pending"}
+                            style={styles.actionBtn(
+                              o.status === "pending",
+                              "#F59E0B",
+                            )}
+                            onClick={() => handleUpdateStatus(o._id, "cooking")}
+                          >
+                            <Utensils size={16} /> Masak
+                          </button>
+                          <button
+                            disabled={o.status !== "cooking"}
+                            style={styles.actionBtn(
+                              o.status === "cooking",
+                              "#3B82F6",
+                            )}
+                            onClick={() => handleUpdateStatus(o._id, "served")}
+                          >
+                            Antar Semua
+                          </button>
+                          <button
+                            disabled={o.status !== "served"}
+                            style={styles.actionBtn(
+                              o.status === "served",
+                              "#10B981",
+                            )}
+                            onClick={() => handleUpdateStatus(o._id, "paid")}
+                          >
+                            Lunas
+                          </button>
+                        </div>
+                      )}
+
+                      {isPaid && (
+                        <div style={styles.completedBadge}>
+                          <CheckCircle size={16} />
+                          <span>Pesanan Selesai</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1265,6 +1294,15 @@ const styles = {
     borderRadius: "30px",
     boxShadow: "0 2px 8px rgba(192, 57, 43, 0.3)",
   },
+  tableNumberWrapperDisabled: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    backgroundColor: "#9CA3AF",
+    padding: "6px 14px",
+    borderRadius: "30px",
+    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+  },
   tableNumberLabel: {
     fontSize: "12px",
     fontWeight: "bold",
@@ -1379,6 +1417,7 @@ const styles = {
   },
   orderId: { fontSize: 10, color: "#9CA3AF", fontFamily: "monospace" },
   orderTotal: { fontSize: 18, fontWeight: "bold", color: "#EA580C" },
+  orderTotalPaid: { fontSize: 18, fontWeight: "bold", color: "#9CA3AF" },
   orderActions: {
     display: "flex",
     flexDirection: "row",
@@ -1420,6 +1459,20 @@ const styles = {
     width: "100%",
     marginTop: "8px",
     transition: "all 0.2s",
+  },
+
+  completedBadge: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    padding: "10px",
+    backgroundColor: "#D1FAE5",
+    borderRadius: "12px",
+    color: "#065F46",
+    fontSize: "14px",
+    fontWeight: "bold",
+    marginTop: "8px",
   },
 
   productFlex: {
