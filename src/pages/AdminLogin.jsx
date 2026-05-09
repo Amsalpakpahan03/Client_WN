@@ -82,7 +82,7 @@ const AdminLogin = () => {
           {/* LOGO dengan background putih dan efek transparan */}
           <div style={styles.logoContainer}>
             <img 
-              src="/logo-warung-ndeso.png" 
+              src="/logo-warung-ndeso.jpg" 
               alt="Warung Ndeso Logo" 
               style={styles.logo}
               onError={(e) => {
