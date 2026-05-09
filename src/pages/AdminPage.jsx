@@ -215,6 +215,34 @@ const AdminPage = () => {
     );
   };
 
+  // Fungsi untuk mengekstrak minuman dari paket
+  const expandPackageItems = (items) => {
+    const expandedItems = [];
+    
+    items.forEach(item => {
+      expandedItems.push(item);
+      
+      // Jika item adalah paket dengan minuman
+      if (item.category === "Paket" && item.includesDrinks && item.includedDrinkIds) {
+        item.includedDrinkIds.forEach(drinkId => {
+          const drink = availableDrinks.find(d => d._id === drinkId);
+          if (drink) {
+            expandedItems.push({
+              ...drink,
+              quantity: item.quantity, // Quantity sama dengan paket
+              price: 0, // Minuman dari paket gratis
+              isIncludedInPackage: true,
+              packageName: item.name,
+              status: item.status, // Status mengikuti paket
+            });
+          }
+        });
+      }
+    });
+    
+    return expandedItems;
+  };
+
   const groupItemsByCategory = (items) => {
     const categories = ["Makanan", "Minuman", "Cemilan", "Paket"];
     const grouped = {};
@@ -495,7 +523,8 @@ const AdminPage = () => {
               </div>
             ) : (
               orders.map((o) => {
-                const groupedItems = groupItemsByCategory(o.items);
+                const expandedItems = expandPackageItems(o.items || []);
+                const groupedItems = groupItemsByCategory(expandedItems);
                 const categories = Object.keys(groupedItems);
 
                 return (
@@ -596,6 +625,11 @@ const AdminPage = () => {
                                         </span>
                                         <span style={styles.categoryItemName}>
                                           {item.name}
+                                          {item.isIncludedInPackage && (
+                                            <span style={styles.packageBadge}>
+                                              dari {item.packageName}
+                                            </span>
+                                          )}
                                         </span>
                                         {item.category === "Minuman" && (
                                           <span
@@ -613,7 +647,7 @@ const AdminPage = () => {
                                           >
                                             {item.status === "served"
                                               ? "✓ Diantar"
-                                              : "⏳ Siap"}
+                                              : "Siap"}
                                           </span>
                                         )}
                                       </div>
@@ -1310,6 +1344,17 @@ const styles = {
     fontSize: "13px",
   },
   categoryItemName: { color: "#374151", fontSize: "13px", flex: 1 },
+  packageBadge: {
+    display: "inline-block",
+    backgroundColor: "#FEF3C7",
+    color: "#D97706",
+    fontSize: "10px",
+    fontWeight: "bold",
+    padding: "2px 6px",
+    borderRadius: "8px",
+    marginLeft: "6px",
+    border: "1px solid #FDE68A",
+  },
   itemStatusBadge: {
     padding: "2px 8px",
     borderRadius: "12px",

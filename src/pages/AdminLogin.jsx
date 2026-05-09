@@ -23,16 +23,33 @@ const AdminLogin = () => {
     }
   }, [navigate]);
 
+  // Fungsi untuk membersihkan input (trim whitespace)
+  const sanitizeInput = (value) => {
+    if (!value || typeof value !== 'string') return '';
+    return value.trim();
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
+    // AMAN: Bersihkan input dari whitespace dan cek kosong
+    const cleanUsername = sanitizeInput(username);
+    const cleanPassword = sanitizeInput(password);
+
+    // Validasi string kosong setelah trim
+    if (!cleanUsername || !cleanPassword) {
+      setError("Username dan password tidak boleh kosong!");
+      setLoading(false);
+      return;
+    }
+
     setTimeout(() => {
-      if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
+      if (cleanUsername === ADMIN_CREDENTIALS.username && cleanPassword === ADMIN_CREDENTIALS.password) {
         // Gunakan sessionStorage
         sessionStorage.setItem("admin_auth", "true");
-        sessionStorage.setItem("admin_username", username);
+        sessionStorage.setItem("admin_username", cleanUsername);
         sessionStorage.setItem("admin_login_time", Date.now().toString());
         
         navigate("/admin");
@@ -43,11 +60,38 @@ const AdminLogin = () => {
     }, 500);
   };
 
+  // Handle onChange dengan sanitasi
+  const handleUsernameChange = (e) => {
+    const value = e.target.value;
+    // Biarkan user mengetik, tapi kita simpan asli dulu
+    setUsername(value);
+    // Hapus error saat user mulai mengetik
+    if (error) setError("");
+  };
+
+  const handlePasswordChange = (e) => {
+    const value = e.target.value;
+    setPassword(value);
+    if (error) setError("");
+  };
+
   return (
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={styles.header}>
-          <h1 style={styles.title}>Admin</h1>
+          {/* LOGO dengan background putih dan efek transparan */}
+          <div style={styles.logoContainer}>
+            <img 
+              src="/logo-warung-ndeso.png" 
+              alt="Warung Ndeso Logo" 
+              style={styles.logo}
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = "/logo-placeholder.png"; // Fallback jika logo tidak ada
+              }}
+            />
+          </div>
+          <h1 style={styles.title}>Admin Panel</h1>
           <p style={styles.subtitle}>Manajemen Sistem Warung Ndeso</p>
         </div>
 
@@ -60,7 +104,7 @@ const AdminLogin = () => {
                 style={styles.input}
                 placeholder="Masukkan username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={handleUsernameChange}
                 required
               />
             </div>
@@ -74,7 +118,7 @@ const AdminLogin = () => {
                 style={styles.input}
                 placeholder="Masukkan password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={handlePasswordChange}
                 required
               />
             </div>
@@ -113,7 +157,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f3ca58", // WARNA KUNING SEPERTI YELLOW HEADER
+    backgroundColor: "#f3ca58",
     padding: "20px",
   },
   card: {
@@ -128,6 +172,26 @@ const styles = {
   header: {
     textAlign: "center",
     marginBottom: "30px",
+  },
+  logoContainer: {
+    display: "flex",
+    justifyContent: "center",
+    marginBottom: "20px",
+    // Background putih dengan efek transparan
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderRadius: "50%",
+    padding: "15px",
+    width: "100px",
+    height: "100px",
+    margin: "0 auto 20px auto",
+    boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
+    transition: "transform 0.3s ease",
+  },
+  logo: {
+    width: "100%",
+    height: "100%",
+    objectFit: "contain",
+    borderRadius: "50%",
   },
   title: {
     fontSize: "28px",
@@ -227,6 +291,11 @@ styleSheet.textContent = `
   
   button:active {
     transform: translateY(0);
+  }
+  
+  /* Hover effect untuk logo */
+  .logo-container:hover {
+    transform: scale(1.05);
   }
 `;
 document.head.appendChild(styleSheet);

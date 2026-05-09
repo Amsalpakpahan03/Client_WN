@@ -307,28 +307,94 @@ function OrderMenu() {
     setOrderProgress(progress);
   };
 
+  // Fungsi untuk mendapatkan minuman dari paket
+  const getPackageDrinks = (packageItem) => {
+    if (!packageItem.includesDrinks || !packageItem.includedDrinkIds || !Array.isArray(packageItem.includedDrinkIds)) {
+      return [];
+    }
+    return menuItems.filter(item => 
+      item.category === "Minuman" && 
+      packageItem.includedDrinkIds.includes(item._id)
+    );
+  };
+
   const addToCart = useCallback((item) => {
-    setCart((prev) => ({ ...prev, [item._id]: (prev[item._id] || 0) + 1 }));
-  }, []);
+    setCart((prev) => {
+      const newCart = { ...prev };
+      
+      // Jika item adalah paket dengan minuman
+      if (item.category === "Paket" && item.includesDrinks) {
+        // Tambahkan paket
+        newCart[item._id] = (newCart[item._id] || 0) + 1;
+        
+        // Tambahkan semua minuman terkait dengan key unik
+        const packageDrinks = getPackageDrinks(item);
+        packageDrinks.forEach(drink => {
+          const packageKey = `${drink._id}_package_${item._id}`;
+          newCart[packageKey] = (newCart[packageKey] || 0) + 1;
+        });
+      } else {
+        // Item biasa
+        newCart[item._id] = (newCart[item._id] || 0) + 1;
+      }
+      
+      return newCart;
+    });
+  }, [menuItems]);
 
   const removeFromCart = useCallback((item) => {
     setCart((prev) => {
-      const qty = prev[item._id] || 0;
-      if (qty <= 1) {
-        const copy = { ...prev };
-        delete copy[item._id];
-        return copy;
+      const newCart = { ...prev };
+      
+      // Jika item adalah paket dengan minuman
+      if (item.category === "Paket" && item.includesDrinks) {
+        // Kurangi paket
+        const packageQty = newCart[item._id] || 0;
+        if (packageQty <= 1) {
+          delete newCart[item._id];
+        } else {
+          newCart[item._id] = packageQty - 1;
+        }
+        
+        // Kurangi semua minuman terkait
+        const packageDrinks = getPackageDrinks(item);
+        packageDrinks.forEach(drink => {
+          const packageKey = `${drink._id}_package_${item._id}`;
+          const drinkQty = newCart[packageKey] || 0;
+          if (drinkQty <= 1) {
+            delete newCart[packageKey];
+          } else {
+            newCart[packageKey] = drinkQty - 1;
+          }
+        });
+      } else {
+        // Item biasa
+        const qty = newCart[item._id] || 0;
+        if (qty <= 1) {
+          delete newCart[item._id];
+        } else {
+          newCart[item._id] = qty - 1;
+        }
       }
-      return { ...prev, [item._id]: qty - 1 };
+      
+      return newCart;
     });
-  }, []);
+  }, [menuItems]);
 
   const totalPrice = useMemo(() => {
     if (!Array.isArray(menuItems) || menuItems.length === 0) return 0;
-    return menuItems.reduce(
-      (sum, item) => sum + (cart[item._id] || 0) * (item.price || 0),
-      0
-    );
+    return Object.entries(cart).reduce((sum, [itemId, qty]) => {
+      // Skip items yang merupakan minuman dari paket (key mengandung '_package_')
+      if (itemId.includes('_package_')) {
+        return sum;
+      }
+      
+      const item = menuItems.find(m => m._id === itemId);
+      if (item && item.price) {
+        return sum + (qty * item.price);
+      }
+      return sum;
+    }, 0);
   }, [cart, menuItems]);
 
   const handleOrder = async () => {
@@ -342,16 +408,41 @@ function OrderMenu() {
       return;
     }
 
-    const items = menuItems
-      .filter((m) => cart[m._id])
-      .map((m) => ({
-        name: m.name,
-        description: m.description,
-        quantity: cart[m._id],
-        price: m.price,
-        category: m.category,
-        status: "pending",
-      }));
+    const items = Object.entries(cart).map(([itemId, qty]) => {
+      // Jika key mengandung '_package_', ini adalah minuman dari paket
+      if (itemId.includes('_package_')) {
+        const [drinkId, , packageId] = itemId.split('_package_');
+        const drinkItem = menuItems.find(m => m._id === drinkId);
+        const packageItem = menuItems.find(m => m._id === packageId);
+        
+        if (drinkItem) {
+          return {
+            name: drinkItem.name,
+            description: drinkItem.description,
+            quantity: qty,
+            price: 0, // Minuman dari paket gratis
+            category: drinkItem.category,
+            status: "pending",
+            isIncludedInPackage: true,
+            packageName: packageItem ? packageItem.name : "Paket",
+          };
+        }
+      } else {
+        // Item biasa
+        const item = menuItems.find(m => m._id === itemId);
+        if (item) {
+          return {
+            name: item.name,
+            description: item.description,
+            quantity: qty,
+            price: item.price,
+            category: item.category,
+            status: "pending",
+          };
+        }
+      }
+      return null;
+    }).filter(Boolean);
 
     setIsSubmitting(true);
     setShowOrderAnimation(true);
