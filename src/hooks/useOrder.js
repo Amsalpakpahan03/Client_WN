@@ -8,7 +8,6 @@ export const useOrder = (tableNumber) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Validasi tableNumber
   const validateTableNumber = useCallback(() => {
     if (!tableNumber) {
       console.error("[ORDER] ❌ tableNumber is undefined or null!");
@@ -28,20 +27,10 @@ export const useOrder = (tableNumber) => {
         const cleanBaseURL = baseURL.replace(/\/$/, '');
         const url = `${cleanBaseURL}/test-token/${tableNumber}`;
         
-        console.log("[ORDER] Fetching token from:", url);
-        
         const response = await axios.get(url, {
           timeout: 10000,
-          headers: {
-            'Content-Type': 'application/json',
-          }
+          headers: { 'Content-Type': 'application/json' }
         });
-        
-        console.log("[ORDER] Token response:", response.data);
-        
-        if (!response.data || !response.data.token) {
-          throw new Error("Invalid token response");
-        }
         
         token = response.data.token;
         localStorage.setItem("order_token", token);
@@ -51,7 +40,6 @@ export const useOrder = (tableNumber) => {
         throw new Error("Failed to generate table token");
       }
     }
-    
     return token;
   }, [tableNumber]);
 
@@ -60,7 +48,6 @@ export const useOrder = (tableNumber) => {
     setError(null);
     
     try {
-      // VALIDASI AWAL: Pastikan tableNumber ada
       if (!validateTableNumber()) {
         throw new Error("Table number is required. Please scan QR code again.");
       }
@@ -68,17 +55,14 @@ export const useOrder = (tableNumber) => {
       console.log("[ORDER] Starting order creation for table:", tableNumber);
       console.log("[ORDER] Payload received from component:", payload);
       
-      // Get token
       const token = await getOrCreateToken();
       console.log("[ORDER] Token obtained:", token ? "Yes (length: " + token.length + ")" : "No");
       
-      // PASTIKAN: tableNumber dikirim sebagai string
       const finalTableNumber = String(tableNumber).trim();
-      console.log("[ORDER] Final tableNumber value:", finalTableNumber);
       
-      // 🔥 PERBAIKAN: Format payload dengan productId
+      // 🔥 PERBAIKAN: Format payload DENGAN productId
       const items = (payload.items || []).map(item => ({
-        productId: item.productId || null,  // ← INI YANG PENTING!
+        productId: item.productId || null,  // ← INI KUNCINYA!
         name: item.name || "Unknown",
         quantity: Number(item.quantity) || 0,
         price: Number(item.price) || 0,
@@ -96,17 +80,10 @@ export const useOrder = (tableNumber) => {
       };
       
       console.log("[ORDER] ========== FINAL PAYLOAD ==========");
-      console.log("[ORDER] tableNumber:", finalPayload.tableNumber);
-      console.log("[ORDER] items count:", finalPayload.items.length);
       console.log("[ORDER] Items with productId:", JSON.stringify(finalPayload.items, null, 2));
-      console.log("[ORDER] totalPrice:", finalPayload.totalPrice);
       
-      // Panggil API create order
       const res = await OrderAPI.create(finalPayload);
-      console.log("[ORDER] Create order response status:", res.status);
-      console.log("[ORDER] Response data:", res.data);
       
-      // Handle response (bisa dalam berbagai format)
       const newOrder = res.data?.data || res.data;
       
       if (!newOrder || !newOrder._id) {
@@ -117,7 +94,6 @@ export const useOrder = (tableNumber) => {
       localStorage.setItem("activeOrderId", newOrder._id);
       
       console.log("[ORDER] ✅ Order created successfully. ID:", newOrder._id);
-      console.log("[ORDER] Order status:", newOrder.status);
       
       return newOrder;
       
@@ -125,30 +101,14 @@ export const useOrder = (tableNumber) => {
       const errMsg = err.response?.data?.message || err.message || "Unknown error";
       const errStatus = err.response?.status;
       
-      console.error("[ORDER] ❌ ========== ERROR DETAILS ==========");
-      console.error("[ORDER] Error message:", errMsg);
+      console.error("[ORDER] ❌ Error message:", errMsg);
       console.error("[ORDER] Error status:", errStatus);
-      console.error("[ORDER] Full error object:", err);
       
       if (err.response?.data) {
         console.error("[ORDER] Server error response:", err.response.data);
       }
       
-      // Tampilkan pesan error yang lebih jelas
-      if (errStatus === 404) {
-        setError("Endpoint order tidak ditemukan. Periksa URL backend.");
-      } else if (errStatus === 400) {
-        setError("Data order tidak valid: " + errMsg);
-      } else if (errStatus === 401) {
-        setError("Token tidak valid. Silakan scan ulang QR code.");
-      } else if (errStatus === 500) {
-        setError("Server error. Coba lagi nanti.");
-      } else if (errMsg === "Table number is required. Please scan QR code again.") {
-        setError(errMsg);
-      } else {
-        setError(errMsg);
-      }
-      
+      setError(errMsg);
       throw err;
     } finally {
       setIsLoading(false);
@@ -157,10 +117,7 @@ export const useOrder = (tableNumber) => {
 
   // Restore order from localStorage
   useEffect(() => {
-    if (!tableNumber) {
-      console.log("[ORDER] No tableNumber, skipping restore");
-      return;
-    }
+    if (!tableNumber) return;
 
     const restoreOrder = async () => {
       const orderId = localStorage.getItem("activeOrderId");
@@ -176,10 +133,9 @@ export const useOrder = (tableNumber) => {
         
         if (resData && resData.status !== "paid") {
           setActiveOrder(resData);
-          console.log("[ORDER] ✅ Restored order:", resData._id, "Status:", resData.status);
+          console.log("[ORDER] ✅ Restored order:", resData._id);
         } else {
           localStorage.removeItem("activeOrderId");
-          console.log("[ORDER] Order already paid or not found, cleared");
         }
       } catch (err) {
         console.error("[ORDER] Restore Error:", err.message);
@@ -198,16 +154,11 @@ export const useOrder = (tableNumber) => {
         localStorage.setItem("activeOrderId", updatedOrder._id);
         return updatedOrder;
       }
-
-      if (current._id !== updatedOrder._id) {
-        return current;
-      }
-
+      if (current._id !== updatedOrder._id) return current;
       if (updatedOrder.status === "paid") {
         localStorage.removeItem("activeOrderId");
         return null;
       }
-
       return { ...current, ...updatedOrder };
     });
   }, []);
