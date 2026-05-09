@@ -1417,6 +1417,7 @@ const styles = {
     border: "1px solid #D1D5DB",
     boxSizing: "border-box",
     fontSize: "14px",
+    fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
   },
   inputRow: { display: "flex", gap: 12, flexDirection: "row" },
   fileLabel: {

@@ -8,6 +8,16 @@ export const useOrder = (tableNumber) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Validasi tableNumber
+  const validateTableNumber = useCallback(() => {
+    if (!tableNumber) {
+      console.error("[ORDER] ❌ tableNumber is undefined or null!");
+      return false;
+    }
+    console.log("[ORDER] ✅ tableNumber from param:", tableNumber);
+    return true;
+  }, [tableNumber]);
+
   const getOrCreateToken = useCallback(async () => {
     let token = localStorage.getItem("order_token");
     
@@ -50,31 +60,47 @@ export const useOrder = (tableNumber) => {
     setError(null);
     
     try {
+      // VALIDASI AWAL: Pastikan tableNumber ada
+      if (!validateTableNumber()) {
+        throw new Error("Table number is required. Please scan QR code again.");
+      }
+      
       console.log("[ORDER] Starting order creation for table:", tableNumber);
-      console.log("[ORDER] Payload received:", payload);
+      console.log("[ORDER] Payload received from component:", payload);
       
       // Get token
       const token = await getOrCreateToken();
-      console.log("[ORDER] Token obtained:", token ? "Yes" : "No");
+      console.log("[ORDER] Token obtained:", token ? "Yes (length: " + token.length + ")" : "No");
       
-      // Format payload untuk backend
+      // PASTIKAN: tableNumber dikirim sebagai string
+      const finalTableNumber = String(tableNumber).trim();
+      console.log("[ORDER] Final tableNumber value:", finalTableNumber);
+      
+      // Format payload untuk backend (PASTIKAN tableNumber selalu ada)
+      const items = (payload.items || []).map(item => ({
+        name: item.name || "Unknown",
+        quantity: Number(item.quantity) || 0,
+        price: Number(item.price) || 0,
+        category: item.category || "Lainnya",
+        status: item.status || "pending"
+      }));
+      
       const finalPayload = {
-        tableNumber: String(tableNumber),
-        items: (payload.items || []).map(item => ({
-          name: item.name || "Unknown",
-          quantity: Number(item.quantity) || 0,
-          price: Number(item.price) || 0,
-          category: item.category || "Lainnya",
-          status: item.status || "pending"
-        })),
+        tableNumber: finalTableNumber,  // ← PASTIKAN INI TERKIRIM
+        items: items,
         totalPrice: Number(payload.totalPrice || 0)
       };
       
-      console.log("[ORDER] Final payload being sent:", JSON.stringify(finalPayload, null, 2));
+      console.log("[ORDER] ========== FINAL PAYLOAD ==========");
+      console.log("[ORDER] tableNumber:", finalPayload.tableNumber);
+      console.log("[ORDER] items count:", finalPayload.items.length);
+      console.log("[ORDER] totalPrice:", finalPayload.totalPrice);
+      console.log("[ORDER] Full payload:", JSON.stringify(finalPayload, null, 2));
       
       // Panggil API create order
       const res = await OrderAPI.create(finalPayload);
-      console.log("[ORDER] Create order response:", res);
+      console.log("[ORDER] Create order response status:", res.status);
+      console.log("[ORDER] Response data:", res.data);
       
       // Handle response (bisa dalam berbagai format)
       const newOrder = res.data?.data || res.data;
@@ -86,24 +112,35 @@ export const useOrder = (tableNumber) => {
       setActiveOrder(newOrder);
       localStorage.setItem("activeOrderId", newOrder._id);
       
-      console.log("[ORDER] ✅ Order created successfully:", newOrder._id);
+      console.log("[ORDER] ✅ Order created successfully. ID:", newOrder._id);
+      console.log("[ORDER] Order status:", newOrder.status);
+      
       return newOrder;
       
     } catch (err) {
       const errMsg = err.response?.data?.message || err.message || "Unknown error";
       const errStatus = err.response?.status;
       
-      console.error("[ORDER] ❌ Create Error:", errMsg);
+      console.error("[ORDER] ❌ ========== ERROR DETAILS ==========");
+      console.error("[ORDER] Error message:", errMsg);
       console.error("[ORDER] Error status:", errStatus);
-      console.error("[ORDER] Full error:", err);
+      console.error("[ORDER] Full error object:", err);
+      
+      if (err.response?.data) {
+        console.error("[ORDER] Server error response:", err.response.data);
+      }
       
       // Tampilkan pesan error yang lebih jelas
       if (errStatus === 404) {
         setError("Endpoint order tidak ditemukan. Periksa URL backend.");
       } else if (errStatus === 400) {
         setError("Data order tidak valid: " + errMsg);
+      } else if (errStatus === 401) {
+        setError("Token tidak valid. Silakan scan ulang QR code.");
       } else if (errStatus === 500) {
         setError("Server error. Coba lagi nanti.");
+      } else if (errMsg === "Table number is required. Please scan QR code again.") {
+        setError(errMsg);
       } else {
         setError(errMsg);
       }
@@ -112,11 +149,14 @@ export const useOrder = (tableNumber) => {
     } finally {
       setIsLoading(false);
     }
-  }, [tableNumber, getOrCreateToken]);
+  }, [tableNumber, getOrCreateToken, validateTableNumber]);
 
   // Restore order from localStorage
   useEffect(() => {
-    if (!tableNumber) return;
+    if (!tableNumber) {
+      console.log("[ORDER] No tableNumber, skipping restore");
+      return;
+    }
 
     const restoreOrder = async () => {
       const orderId = localStorage.getItem("activeOrderId");
