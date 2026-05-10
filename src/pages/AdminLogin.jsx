@@ -138,13 +138,13 @@ const AdminLogin = () => {
             {loading ? "Memproses..." : "Login"}
           </button>
 
-          <div style={styles.infoBox}>
+          {/* <div style={styles.infoBox}>
             <p style={styles.infoText}>
               <strong>Info Demo:</strong><br />
               Username: admin<br />
               Password: admin123
             </p>
-          </div>
+          </div> */}
         </form>
       </div>
     </div>
