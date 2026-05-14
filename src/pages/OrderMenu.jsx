@@ -1,3 +1,4 @@
+// src/pages/OrderMenu.jsx
 import React, {
   useEffect,
   useState,
@@ -12,6 +13,7 @@ import socket from "../api/socket";
 import { useMenu } from "../hooks/useMenu";
 import { useOrder } from "../hooks/useOrder";
 import Footer from "../components/Footer";
+import FrequentlyBought from "../components/FrequentlyBought";
 
 /* ================= CONSTANT ================= */
 const CATEGORIES = ["Paket", "Makanan", "Minuman", "Cemilan"];
@@ -338,19 +340,14 @@ function OrderMenu() {
       setCart((prev) => {
         const newCart = { ...prev };
 
-        // Jika item adalah paket dengan minuman
         if (item.category === "Paket" && item.includesDrinks) {
-          // Tambahkan paket
           newCart[item._id] = (newCart[item._id] || 0) + 1;
-
-          // Tambahkan semua minuman terkait dengan key unik
           const packageDrinks = getPackageDrinks(item);
           packageDrinks.forEach((drink) => {
             const packageKey = `${drink._id}_package_${item._id}`;
             newCart[packageKey] = (newCart[packageKey] || 0) + 1;
           });
         } else {
-          // Item biasa
           newCart[item._id] = (newCart[item._id] || 0) + 1;
         }
 
@@ -365,9 +362,7 @@ function OrderMenu() {
       setCart((prev) => {
         const newCart = { ...prev };
 
-        // Jika item adalah paket dengan minuman
         if (item.category === "Paket" && item.includesDrinks) {
-          // Kurangi paket
           const packageQty = newCart[item._id] || 0;
           if (packageQty <= 1) {
             delete newCart[item._id];
@@ -375,7 +370,6 @@ function OrderMenu() {
             newCart[item._id] = packageQty - 1;
           }
 
-          // Kurangi semua minuman terkait
           const packageDrinks = getPackageDrinks(item);
           packageDrinks.forEach((drink) => {
             const packageKey = `${drink._id}_package_${item._id}`;
@@ -387,7 +381,6 @@ function OrderMenu() {
             }
           });
         } else {
-          // Item biasa
           const qty = newCart[item._id] || 0;
           if (qty <= 1) {
             delete newCart[item._id];
@@ -405,11 +398,9 @@ function OrderMenu() {
   const totalPrice = useMemo(() => {
     if (!Array.isArray(menuItems) || menuItems.length === 0) return 0;
     return Object.entries(cart).reduce((sum, [itemId, qty]) => {
-      // Skip items yang merupakan minuman dari paket (key mengandung '_package_')
       if (itemId.includes("_package_")) {
         return sum;
       }
-
       const item = menuItems.find((m) => m._id === itemId);
       if (item && item.price) {
         return sum + qty * item.price;
@@ -429,16 +420,13 @@ function OrderMenu() {
       return;
     }
 
-    // 🔥 PERBAIKAN: Hanya kirim item ASLI, SKIP minuman dari paket
     const items = [];
 
     for (const [itemId, qty] of Object.entries(cart)) {
-      // SKIP semua minuman dari paket (key mengandung '_package_')
       if (itemId.includes("_package_")) {
-        continue; // ← JANGAN kirim ke server, biar server yang handle
+        continue;
       }
 
-      // Hanya kirim item asli (paket atau menu biasa)
       const item = menuItems.find((m) => m._id === itemId);
       if (item) {
         items.push({
@@ -449,17 +437,11 @@ function OrderMenu() {
           price: item.price,
           category: item.category,
           status: "pending",
-          // Kirim info paket agar server tahu ini paket yang include minuman
           includesDrinks: item.includesDrinks || false,
           includedDrinkIds: item.includedDrinkIds || [],
         });
       }
     }
-
-    console.log(
-      "📦 Items yang dikirim ke server (tanpa minuman duplikat):",
-      JSON.stringify(items, null, 2),
-    );
 
     setIsSubmitting(true);
     setShowOrderAnimation(true);
@@ -469,7 +451,6 @@ function OrderMenu() {
       await createOrder({ tableNumber, items, totalPrice, token });
       setCart({});
 
-      // Clear cart from localStorage after successful order
       const savedCartKey = `cart_${tableNumber}`;
       localStorage.removeItem(savedCartKey);
 
@@ -487,7 +468,7 @@ function OrderMenu() {
       setIsSubmitting(false);
     }
   };
-  // Fungsi scroll ke kategori
+
   const scrollToCategory = (category) => {
     setActiveCategory(category);
     const ref = categoryRefs.current[category];
@@ -536,13 +517,7 @@ function OrderMenu() {
         <div style={styles.expiredContainer}>
           <div style={styles.expiredCard}>
             <div style={{ fontSize: "64px", marginBottom: "20px" }}>✓</div>
-            <h2
-              style={{
-                fontSize: "24px",
-                color: "#27ae60",
-                marginBottom: "12px",
-              }}
-            >
+            <h2 style={{ fontSize: "24px", color: "#27ae60", marginBottom: "12px" }}>
               Pesanan Selesai
             </h2>
             <p style={{ color: "#333", marginBottom: "30px" }}>
@@ -572,15 +547,8 @@ function OrderMenu() {
           <div style={styles.lockedContent}>
             <div style={{ fontSize: "50px", marginBottom: "20px" }}>🔒</div>
             <h2 style={{ color: COLORS.textDark }}>Meja Sedang Digunakan</h2>
-            <p
-              style={{
-                color: COLORS.textLight,
-                fontSize: "14px",
-                marginBottom: "20px",
-              }}
-            >
-              Maaf, meja nomor <b>{tableNumber}</b> sedang diakses oleh
-              pelanggan lain.
+            <p style={{ color: COLORS.textLight, fontSize: "14px", marginBottom: "20px" }}>
+              Maaf, meja nomor <b>{tableNumber}</b> sedang diakses oleh pelanggan lain.
             </p>
             <button
               style={{
@@ -634,11 +602,11 @@ function OrderMenu() {
       <div style={styles.contentContainer}>
         {showLockAlert && (
           <div style={styles.alertOverlay}>
-            <div style={styles.alertBox}>
-              Meja {tableNumber} sedang digunakan
-            </div>
+            <div style={styles.alertBox}>Meja {tableNumber} sedang digunakan</div>
           </div>
         )}
+
+        {!activeOrder && <FrequentlyBought onAddToCart={addToCart} menuItems={menuItems} />}
 
         {activeOrder ? (
           <div style={{ padding: "0 20px" }}>
@@ -648,10 +616,8 @@ function OrderMenu() {
                   <div
                     style={{
                       ...styles.statusChip,
-                      backgroundColor:
-                        getStatusInfo(activeOrder.status)?.bg || "#f8f9fa",
-                      color:
-                        getStatusInfo(activeOrder.status)?.color || "#7f8c8d",
+                      backgroundColor: getStatusInfo(activeOrder.status)?.bg || "#f8f9fa",
+                      color: getStatusInfo(activeOrder.status)?.color || "#7f8c8d",
                     }}
                   >
                     {getStatusInfo(activeOrder.status)?.text || "Menunggu"}
@@ -662,8 +628,7 @@ function OrderMenu() {
               <div style={styles.progressWrapper}>
                 <div style={styles.progressSteps}>
                   {["pending", "cooking", "served"].map((stepStatus, idx) => {
-                    const safeProgress =
-                      typeof orderProgress === "number" ? orderProgress : 0;
+                    const safeProgress = typeof orderProgress === "number" ? orderProgress : 0;
                     const isActive = safeProgress >= (idx + 1) * 33;
                     const isCurrent = activeOrder.status === stepStatus;
                     const stepInfo = getStatusInfo(stepStatus);
@@ -672,13 +637,9 @@ function OrderMenu() {
                         <div
                           style={{
                             ...styles.progressDot,
-                            backgroundColor: isActive
-                              ? COLORS.orange
-                              : "#e0e0e0",
+                            backgroundColor: isActive ? COLORS.orange : "#e0e0e0",
                             transform: isCurrent ? "scale(1.2)" : "scale(1)",
-                            boxShadow: isCurrent
-                              ? `0 0 0 3px ${COLORS.orange}40`
-                              : "none",
+                            boxShadow: isCurrent ? `0 0 0 3px ${COLORS.orange}40` : "none",
                           }}
                         >
                           {isActive && <div style={styles.progressDotInner} />}
@@ -701,7 +662,6 @@ function OrderMenu() {
                     style={{
                       ...styles.progressBarFill,
                       width: `${typeof orderProgress === "number" ? orderProgress : 0}%`,
-                      transition: "width 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
                     }}
                   >
                     <div style={styles.progressGlow} />
@@ -716,49 +676,35 @@ function OrderMenu() {
                 activeOrder.items.map((item, idx) => {
                   if (!item || typeof item !== "object") return null;
 
-                  const isDelivered =
-                    deliveredItems[item.name]?.delivered === true;
+                  const isDelivered = deliveredItems[item.name]?.delivered === true;
                   const deliveredData = deliveredItems[item.name];
                   const isDrink = item.category === "Minuman";
 
                   return (
                     <div key={idx} style={styles.orderItemRow}>
                       <div style={styles.orderItemInfo}>
-                        <span style={styles.orderItemQuantity}>
-                          {item.quantity || 0}x
-                        </span>
+                        <span style={styles.orderItemQuantity}>{item.quantity || 0}x</span>
                         <span style={styles.orderItemName}>
                           {item.name || "Unknown"}
                           {isDelivered && (
                             <span style={styles.deliveredBadge}>
-                              <span style={styles.checkIcon}>✓</span> Sudah
-                              Diantar
+                              <span style={styles.checkIcon}>✓</span> Sudah Diantar
                             </span>
                           )}
-                          {!isDelivered &&
-                            isDrink &&
-                            activeOrder.status === "cooking" && (
-                              <span style={styles.preparingBadge}>
-                                <span style={styles.clockIcon}>⏱️</span> Sedang
-                                Disiapkan
-                              </span>
-                            )}
+                          {!isDelivered && isDrink && activeOrder.status === "cooking" && (
+                            <span style={styles.preparingBadge}>
+                              <span style={styles.clockIcon}>⏱️</span> Sedang Disiapkan
+                            </span>
+                          )}
                         </span>
                       </div>
                       <div style={styles.orderItemRight}>
-                        <span
-                          style={{ fontWeight: "bold", color: COLORS.orange }}
-                        >
-                          Rp{" "}
-                          {(
-                            (item.price || 0) * (item.quantity || 0)
-                          ).toLocaleString()}
+                        <span style={{ fontWeight: "bold", color: COLORS.orange }}>
+                          Rp {((item.price || 0) * (item.quantity || 0)).toLocaleString()}
                         </span>
                         {isDelivered && deliveredData?.deliveredAt && (
                           <div style={styles.deliveredTime}>
-                            {new Date(
-                              deliveredData.deliveredAt,
-                            ).toLocaleTimeString([], {
+                            {new Date(deliveredData.deliveredAt).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
@@ -772,32 +718,25 @@ function OrderMenu() {
 
             <div style={styles.totalSection}>
               <span>TOTAL:</span>
-              <span style={styles.totalValue}>
-                Rp {(activeOrder.totalPrice || 0).toLocaleString()}
-              </span>
+              <span style={styles.totalValue}>Rp {(activeOrder.totalPrice || 0).toLocaleString()}</span>
             </div>
 
-            {deliveredStats.hasPartialDelivery &&
-              deliveredStats.drinkDelivered < deliveredStats.drinkItems && (
-                <div style={styles.deliveryProgress}>
-                  <div style={styles.deliveryProgressText}>
-                    Minuman sudah diantar, makanan masih dimasak...
-                  </div>
-                  <div style={styles.waveAnimation}>
-                    <div style={styles.waveDot} />
-                    <div style={styles.waveDot} />
-                    <div style={styles.waveDot} />
-                  </div>
+            {deliveredStats.hasPartialDelivery && deliveredStats.drinkDelivered < deliveredStats.drinkItems && (
+              <div style={styles.deliveryProgress}>
+                <div style={styles.deliveryProgressText}>Minuman sudah diantar, makanan masih dimasak...</div>
+                <div style={styles.waveAnimation}>
+                  <div style={styles.waveDot} />
+                  <div style={styles.waveDot} />
+                  <div style={styles.waveDot} />
                 </div>
-              )}
+              </div>
+            )}
           </div>
         ) : (
           <>
-            {/* TOMBOL NAVIGASI KATEGORI */}
             <div style={styles.categoryNav}>
               {CATEGORIES.map((cat) => {
-                const hasItems =
-                  menuByCategory.find((c) => c.name === cat)?.items.length > 0;
+                const hasItems = menuByCategory.find((c) => c.name === cat)?.items.length > 0;
                 if (!hasItems) return null;
                 return (
                   <button
@@ -805,8 +744,7 @@ function OrderMenu() {
                     onClick={() => scrollToCategory(cat)}
                     style={{
                       ...styles.navButton,
-                      backgroundColor:
-                        activeCategory === cat ? COLORS.orange : "#f5f5f5",
+                      backgroundColor: activeCategory === cat ? COLORS.orange : "#f5f5f5",
                       color: activeCategory === cat ? "#fff" : COLORS.textDark,
                     }}
                   >
@@ -816,7 +754,6 @@ function OrderMenu() {
               })}
             </div>
 
-            {/* MENU PER KATEGORI */}
             <div style={{ padding: "0 20px 100px 20px" }}>
               {menuByCategory.map(
                 (cat) =>
@@ -852,12 +789,7 @@ function OrderMenu() {
             </div>
             <h3 style={styles.loadingTitle}>Memproses Pesanan</h3>
             <div style={styles.loadingBar}>
-              <div
-                style={{
-                  ...styles.loadingFill,
-                  width: `${animationProgress}%`,
-                }}
-              />
+              <div style={{ ...styles.loadingFill, width: `${animationProgress}%` }} />
             </div>
           </div>
         </div>
@@ -866,9 +798,7 @@ function OrderMenu() {
       {!!Object.keys(cart).length && !activeOrder && (
         <div style={styles.cartBar}>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ fontSize: "11px", color: "#888" }}>
-              Total Pesanan
-            </span>
+            <span style={{ fontSize: "11px", color: "#888" }}>Total Pesanan</span>
             <b style={styles.cartTotal}>Rp {totalPrice.toLocaleString()}</b>
           </div>
           <button
@@ -880,11 +810,7 @@ function OrderMenu() {
             onClick={handleOrder}
             disabled={isSubmitting}
           >
-            {isSubmitting ? (
-              <div style={styles.buttonSpinner} />
-            ) : (
-              "PESAN SEKARANG"
-            )}
+            {isSubmitting ? <div style={styles.buttonSpinner} /> : "PESAN SEKARANG"}
           </button>
         </div>
       )}
@@ -893,75 +819,55 @@ function OrderMenu() {
   );
 }
 
-// ================= MENU ITEM COMPONENT (DIPERBAIKI DENGAN TIMESTAMP) =================
+// ================= MENU ITEM COMPONENT (DIPERBAIKI) =================
 const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
   const ASSET_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
-
-  // Timestamp untuk force refresh gambar (menghindari cache HP)
-  const timestamp = new Date().getTime();
-
-  if (!item) return null;
+  const [imgError, setImgError] = useState(false);
 
   const getImageUrl = () => {
+    if (imgError) {
+      return `${ASSET_URL}/uploads/no-image.png`;
+    }
     if (!item.image_url) {
-      return `${ASSET_URL}/uploads/no-image.png?t=${timestamp}`;
+      return `${ASSET_URL}/uploads/no-image.png`;
     }
     if (item.image_url.startsWith("http")) {
-      // Hapus timestamp lama jika ada
       const baseUrl = item.image_url.split("?")[0];
-      return `${baseUrl}?t=${timestamp}`;
+      return baseUrl;
     }
-    return `${ASSET_URL}/uploads/${item.image_url}?t=${timestamp}`;
+    return `${ASSET_URL}/uploads/${item.image_url}`;
   };
+
+  if (!item) return null;
 
   return (
     <div style={styles.menuCard}>
       <img
-        key={`${item._id}-${timestamp}`}
         src={getImageUrl()}
         alt={item.name || "Menu item"}
         style={styles.menuImage}
         loading="eager"
-        onError={(e) => {
-          e.target.src = `${ASSET_URL}/uploads/no-image.png?t=${timestamp}`;
+        onError={() => {
+          if (!imgError) setImgError(true);
         }}
       />
       <div style={styles.menuInfo}>
         <div style={styles.menuName}>{item.name || "Unknown"}</div>
-        {item.description && (
-          <div style={styles.menuDesc}>{item.description}</div>
-        )}
-        <div style={styles.menuPrice}>
-          Rp {(item.price || 0).toLocaleString()}
-        </div>
+        {item.description && <div style={styles.menuDesc}>{item.description}</div>}
+        <div style={styles.menuPrice}>Rp {(item.price || 0).toLocaleString()}</div>
       </div>
       <div style={styles.menuAction}>
         {qty > 0 ? (
           <div style={styles.qtyWrapper}>
-            <button style={styles.qtyBtnSmall} onClick={() => onRemove(item)}>
-              −
-            </button>
-            <span
-              style={{
-                fontWeight: "bold",
-                minWidth: "20px",
-                textAlign: "center",
-                fontSize: "14px",
-              }}
-            >
+            <button style={styles.qtyBtnSmall} onClick={() => onRemove(item)}>−</button>
+            <span style={{ fontWeight: "bold", minWidth: "20px", textAlign: "center", fontSize: "14px" }}>
               {qty}
             </span>
-            <button style={styles.qtyBtnSmall} onClick={() => onAdd(item)}>
-              +
-            </button>
+            <button style={styles.qtyBtnSmall} onClick={() => onAdd(item)}>+</button>
           </div>
         ) : (
           <button
-            style={{
-              ...styles.addButton,
-              color: COLORS.orange,
-              borderColor: COLORS.orange,
-            }}
+            style={{ ...styles.addButton, color: COLORS.orange, borderColor: COLORS.orange }}
             onClick={() => onAdd(item)}
           >
             Tambah
@@ -1011,7 +917,6 @@ const styles = {
     minHeight: "600px",
     boxShadow: "0 -10px 20px rgba(0,0,0,0.05)",
   },
-  // STYLE NAVIGASI KATEGORI
   categoryNav: {
     display: "flex",
     justifyContent: "space-around",
@@ -1060,6 +965,7 @@ const styles = {
     height: "85px",
     borderRadius: "15px",
     objectFit: "cover",
+    backgroundColor: "#f5f5f5",
   },
   menuInfo: { flex: 1 },
   menuName: {
@@ -1293,8 +1199,7 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    background:
-      "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
+    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
     animation: "shimmer 2s infinite",
   },
   deliveryProgress: { marginTop: "20px", textAlign: "center" },

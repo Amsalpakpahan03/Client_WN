@@ -1,7 +1,7 @@
 // pages/AdminPage.jsx
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../api/axios";
+import api, { uploadApi } from "../api/axios";
 import socket from "../api/socket";
 import {
   Loader,
@@ -323,48 +323,59 @@ const AdminPage = () => {
     setImagePreview(URL.createObjectURL(file));
   };
 
-  const handleAddProduct = async (e) => {
-    e.preventDefault();
-    const formData = new FormData();
-    formData.append("name", newProduct.name);
-    formData.append("price", newProduct.price);
-    formData.append("description", newProduct.desc);
-    formData.append("category", newProduct.category);
-    if (newProduct.imageFile) formData.append("image", newProduct.imageFile);
+const handleAddProduct = async (e) => {
+  e.preventDefault();
+  
+  // Validasi file size (opsional, cegah file terlalu besar)
+  if (newProduct.imageFile && newProduct.imageFile.size > 10 * 1024 * 1024) {
+    showAlert("error", "Ukuran file terlalu besar! Maksimal 10MB");
+    return;
+  }
+  
+  const formData = new FormData();
+  formData.append("name", newProduct.name);
+  formData.append("price", newProduct.price);
+  formData.append("description", newProduct.desc);
+  formData.append("category", newProduct.category);
+  if (newProduct.imageFile) formData.append("image", newProduct.imageFile);
 
-    if (newProduct.category === "Paket") {
-      formData.append("includesDrinks", newProduct.includesDrinks);
-      if (newProduct.includesDrinks && newProduct.includedDrinkIds.length > 0) {
-        formData.append(
-          "includedDrinkIds",
-          JSON.stringify(newProduct.includedDrinkIds),
-        );
-      }
+  if (newProduct.category === "Paket") {
+    formData.append("includesDrinks", newProduct.includesDrinks);
+    if (newProduct.includesDrinks && newProduct.includedDrinkIds.length > 0) {
+      formData.append(
+        "includedDrinkIds",
+        JSON.stringify(newProduct.includedDrinkIds),
+      );
     }
+  }
 
-    try {
-      await api.post("/api/menu", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      showAlert("success", "Menu berhasil ditambahkan!");
-      setNewProduct({
-        name: "",
-        price: "",
-        desc: "",
-        category: "Makanan",
-        imageFile: null,
-        includesDrinks: false,
-        includedDrinkIds: [],
-      });
-      setImagePreview(null);
-      fetchProducts();
-    } catch (err) {
+  try {
+    // GANTI: api.post → uploadApi.post (hapus headers manual)
+    await uploadApi.post("/api/menu", formData);
+    showAlert("success", "Menu berhasil ditambahkan!");
+    setNewProduct({
+      name: "",
+      price: "",
+      desc: "",
+      category: "Makanan",
+      imageFile: null,
+      includesDrinks: false,
+      includedDrinkIds: [],
+    });
+    setImagePreview(null);
+    fetchProducts();
+  } catch (err) {
+    console.error("Upload error:", err);
+    if (err.code === "ECONNABORTED") {
+      showAlert("error", "Upload timeout! File terlalu besar atau koneksi lambat. Coba kompres gambar.");
+    } else {
       showAlert(
         "error",
         `Gagal menambah menu: ${err.response?.data?.message || err.message}`,
       );
     }
-  };
+  }
+};
 
   const openDeleteModal = (id, name) => {
     setDeleteModal({
