@@ -41,6 +41,13 @@ export const OrderAPI = {
   },
 
   /**
+   * Add new items to an existing order
+   */
+  addItems(orderId, payload) {
+    return api.put(`/api/orders/${orderId}/items`, payload);
+  },
+
+  /**
    * Update status untuk items dalam kategori tertentu
    */
   updateCategoryStatus(orderId, category, status) {

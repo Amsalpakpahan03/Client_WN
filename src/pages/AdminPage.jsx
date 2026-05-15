@@ -37,10 +37,18 @@ const AdminPage = () => {
     imageFile: null,
     includesDrinks: false,
     includedDrinkIds: [],
+    hasTemperature: false,
+    extraPriceForIce: 1000,
+    hasVariants: true,
+    variants: [
+      { name: "Dengan Telur", extraPrice: 3000 },
+      { name: "Tanpa Telur", extraPrice: 0 },
+    ],
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [availableDrinks, setAvailableDrinks] = useState([]);
+  const [isUpdatingProductId, setIsUpdatingProductId] = useState(null);
 
   const [alert, setAlert] = useState({
     show: false,
@@ -119,13 +127,27 @@ const AdminPage = () => {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const res = await api.get("/api/menu");
+      const res = await api.get("/api/admin/menu");
       setProducts(
         res.data.data && Array.isArray(res.data.data)
           ? res.data.data
           : res.data,
       );
     } catch (err) {
+      if (err.response?.status === 404) {
+        try {
+          const res = await api.get("/api/menu");
+          setProducts(
+            res.data.data && Array.isArray(res.data.data)
+              ? res.data.data
+              : res.data,
+          );
+          return;
+        } catch (fallbackErr) {
+          console.error("[ADMIN] Fallback fetch menu gagal:", fallbackErr);
+        }
+      }
+
       console.error("[ADMIN] Gagal mengambil data menu:", err);
       if (err.response?.status === 401) {
         handleLogout();
@@ -140,7 +162,9 @@ const AdminPage = () => {
         res.data.data && Array.isArray(res.data.data)
           ? res.data.data
           : res.data;
-      const drinks = allMenus.filter((menu) => menu.category === "Minuman");
+      const drinks = allMenus.filter(
+        (menu) => menu.category === "Minuman" && menu.isAvailable !== false,
+      );
       setAvailableDrinks(drinks);
     } catch (err) {
       console.error("Gagal mengambil data minuman:", err);
@@ -213,6 +237,34 @@ const AdminPage = () => {
     return order.items.some(
       (item) => item.category === "Minuman" && item.status !== "served",
     );
+  };
+
+  const toggleProductAvailability = async (product) => {
+    setIsUpdatingProductId(product._id);
+    const actionLabel = product.isAvailable === false ? "diaktifkan" : "dinonaktifkan";
+
+    try {
+      try {
+        await api.patch(`/api/admin/menu/${product._id}/toggle-availability`);
+      } catch (err) {
+        if (err.response?.status === 404) {
+          await api.patch(`/api/menu/${product._id}/toggle-availability`);
+        } else {
+          throw err;
+        }
+      }
+
+      showAlert("success", `Menu ${actionLabel} berhasil!`);
+      fetchProducts();
+    } catch (err) {
+      console.error("[ADMIN] Gagal toggle availability:", err);
+      showAlert(
+        "error",
+        `Gagal mengubah status menu: ${err.response?.data?.message || err.message}`,
+      );
+    } finally {
+      setIsUpdatingProductId(null);
+    }
   };
 
   // Fungsi untuk mengekstrak minuman dari paket
@@ -323,6 +375,29 @@ const AdminPage = () => {
     setImagePreview(URL.createObjectURL(file));
   };
 
+  const handleAddVariant = () => {
+    setNewProduct((prev) => ({
+      ...prev,
+      hasVariants: true,
+      variants: [...prev.variants, { name: "", extraPrice: 0 }],
+    }));
+  };
+
+  const handleVariantChange = (index, field, value) => {
+    setNewProduct((prev) => {
+      const variants = [...prev.variants];
+      variants[index] = { ...variants[index], [field]: value };
+      return { ...prev, variants };
+    });
+  };
+
+  const handleRemoveVariant = (index) => {
+    setNewProduct((prev) => {
+      const variants = prev.variants.filter((_, idx) => idx !== index);
+      return { ...prev, variants };
+    });
+  };
+
 const handleAddProduct = async (e) => {
   e.preventDefault();
   
@@ -337,6 +412,12 @@ const handleAddProduct = async (e) => {
   formData.append("price", newProduct.price);
   formData.append("description", newProduct.desc);
   formData.append("category", newProduct.category);
+  formData.append("hasTemperature", newProduct.hasTemperature);
+  formData.append("extraPriceForIce", newProduct.extraPriceForIce);
+  formData.append("hasVariants", newProduct.hasVariants);
+  if (newProduct.hasVariants && Array.isArray(newProduct.variants)) {
+    formData.append("variants", JSON.stringify(newProduct.variants));
+  }
   if (newProduct.imageFile) formData.append("image", newProduct.imageFile);
 
   if (newProduct.category === "Paket") {
@@ -361,6 +442,13 @@ const handleAddProduct = async (e) => {
       imageFile: null,
       includesDrinks: false,
       includedDrinkIds: [],
+      hasTemperature: false,
+      extraPriceForIce: 1000,
+      hasVariants: true,
+      variants: [
+        { name: "Dengan Telur", extraPrice: 3000 },
+        { name: "Tanpa Telor", extraPrice: 0 },
+      ],
     });
     setImagePreview(null);
     fetchProducts();
@@ -806,12 +894,18 @@ const handleAddProduct = async (e) => {
                       <select
                         style={styles.input}
                         value={newProduct.category}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const category = e.target.value;
                           setNewProduct({
                             ...newProduct,
-                            category: e.target.value,
-                          })
-                        }
+                            category,
+                            includesDrinks: category === "Paket" ? newProduct.includesDrinks : false,
+                            includedDrinkIds: category === "Paket" ? newProduct.includedDrinkIds : [],
+                            hasTemperature: category === "Minuman" ? newProduct.hasTemperature : false,
+                            extraPriceForIce: category === "Minuman" ? newProduct.extraPriceForIce : 1000,
+                            hasVariants: category === "Makanan" ? newProduct.hasVariants : false,
+                          });
+                        }}
                       >
                         <option value="Makanan">Makanan</option>
                         <option value="Cemilan">Cemilan</option>
@@ -820,6 +914,111 @@ const handleAddProduct = async (e) => {
                       </select>
                     </div>
                   </div>
+
+                  {newProduct.category === "Minuman" && (
+                    <div style={styles.checkboxGroup}>
+                      <label style={styles.checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          checked={newProduct.hasTemperature}
+                          onChange={(e) =>
+                            setNewProduct({
+                              ...newProduct,
+                              hasTemperature: e.target.checked,
+                            })
+                          }
+                          style={styles.checkbox}
+                        />
+                        <span>Gunakan opsi Es / Hangat</span>
+                      </label>
+                      {newProduct.hasTemperature && (
+                        <div style={styles.inputRow}>
+                          <div style={{ flex: 1 }}>
+                            <label style={styles.label}>Biaya tambahan Es (Rp)</label>
+                            <input
+                              style={styles.input}
+                              type="number"
+                              min="0"
+                              value={newProduct.extraPriceForIce}
+                              onChange={(e) =>
+                                setNewProduct({
+                                  ...newProduct,
+                                  extraPriceForIce: Number(e.target.value),
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {newProduct.category === "Makanan" && (
+                    <div style={styles.checkboxGroup}>
+                      <label style={styles.checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          checked={newProduct.hasVariants}
+                          onChange={(e) =>
+                            setNewProduct({
+                              ...newProduct,
+                              hasVariants: e.target.checked,
+                            })
+                          }
+                          style={styles.checkbox}
+                        />
+                        <span>Tambahkan varian makanan</span>
+                      </label>
+
+                      {newProduct.hasVariants && (
+                        <div style={styles.variantSection}>
+                          {newProduct.variants.map((variant, idx) => (
+                            <div key={`${variant.name}-${idx}`} style={styles.variantRow}>
+                              <input
+                                type="text"
+                                placeholder="Nama varian"
+                                style={{ ...styles.input, flex: 2, marginRight: 8 }}
+                                value={variant.name}
+                                onChange={(e) =>
+                                  handleVariantChange(idx, "name", e.target.value)
+                                }
+                                required
+                              />
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="Harga tambahan"
+                                style={{ ...styles.input, flex: 1, marginRight: 8 }}
+                                value={variant.extraPrice}
+                                onChange={(e) =>
+                                  handleVariantChange(
+                                    idx,
+                                    "extraPrice",
+                                    Number(e.target.value),
+                                  )
+                                }
+                                required
+                              />
+                              <button
+                                type="button"
+                                style={styles.removeVariantBtn}
+                                onClick={() => handleRemoveVariant(idx)}
+                              >
+                                Hapus
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            style={styles.addVariantBtn}
+                            onClick={handleAddVariant}
+                          >
+                            Tambah Varian
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {newProduct.category === "Paket" && (
                     <div style={styles.checkboxGroup}>
@@ -962,7 +1161,14 @@ const handleAddProduct = async (e) => {
                   }
 
                   return (
-                    <div key={p._id} style={styles.productCard}>
+                    <div
+                      key={p._id}
+                      style={{
+                        ...styles.productCard,
+                        opacity: p.isAvailable === false ? 0.5 : 1,
+                        filter: p.isAvailable === false ? "grayscale(0.75)" : "none",
+                      }}
+                    >
                       <div style={styles.productImageWrapper}>
                         <img
                           src={imageUrl}
@@ -999,11 +1205,26 @@ const handleAddProduct = async (e) => {
                             ✓ Include minuman
                           </p>
                         )}
+                        {p.isAvailable === false && (
+                          <p style={styles.disabledLabel}>Nonaktif</p>
+                        )}
                         <button
                           style={styles.deleteBtn}
                           onClick={() => openDeleteModal(p._id, p.name)}
                         >
                           <Trash size={14} /> Hapus
+                        </button>
+                        <button
+                          style={{
+                            ...styles.toggleBtn,
+                            ...(p.isAvailable === false
+                              ? styles.activateBtn
+                              : styles.deactivateBtn),
+                          }}
+                          onClick={() => toggleProductAvailability(p)}
+                          disabled={isUpdatingProductId === p._id}
+                        >
+                          {p.isAvailable === false ? "Aktifkan" : "Nonaktifkan"}
                         </button>
                       </div>
                     </div>
@@ -1149,6 +1370,32 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: "8px",
+  },
+  disabledLabel: {
+    margin: "8px 0 0 0",
+    fontSize: "12px",
+    color: "#9CA3AF",
+    fontWeight: "600",
+  },
+  toggleBtn: {
+    width: "100%",
+    padding: "10px",
+    marginTop: "8px",
+    borderRadius: "8px",
+    border: "none",
+    color: "white",
+    fontWeight: "600",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+  },
+  activateBtn: {
+    backgroundColor: "#10B981",
+  },
+  deactivateBtn: {
+    backgroundColor: "#F97316",
   },
 
   container: { maxWidth: 1200, margin: "0 auto", padding: "0 16px" },

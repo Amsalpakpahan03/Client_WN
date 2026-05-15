@@ -13,7 +13,7 @@ import socket from "../api/socket";
 import { useMenu } from "../hooks/useMenu";
 import { useOrder } from "../hooks/useOrder";
 import Footer from "../components/Footer";
-import FrequentlyBought from "../components/FrequentlyBought";
+// import FrequentlyBought from "../components/FrequentlyBought"; // 🔥 DINONAKTIFKAN SEMENTARA
 
 /* ================= CONSTANT ================= */
 const CATEGORIES = ["Paket", "Makanan", "Minuman", "Cemilan"];
@@ -35,20 +35,27 @@ function OrderMenu() {
   const tableNumber = query.get("table");
 
   const { menuItems = [] } = useMenu();
-  const { activeOrder, createOrder, updateOrderFromSocket } =
+  const { activeOrder, createOrder, addItemsToOrder, updateOrderFromSocket } =
     useOrder(tableNumber);
 
   const [orderToken, setOrderToken] = useState(null);
   const [cart, setCart] = useState({});
+  const [itemOptions, setItemOptions] = useState({});
   const [isLocked, setIsLocked] = useState(false);
   const [showLockAlert, setShowLockAlert] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSessionExpired, setShowSessionExpired] = useState(false);
+  const [hasShownOrderCompleteAlert, setHasShownOrderCompleteAlert] = useState(false);
   const [orderProgress, setOrderProgress] = useState(0);
   const [showOrderAnimation, setShowOrderAnimation] = useState(false);
   const [animationProgress, setAnimationProgress] = useState(0);
   const [deliveredItems, setDeliveredItems] = useState({});
   const [activeCategory, setActiveCategory] = useState("Paket");
+  
+  // ============ STATE UNTUK FITUR PESAN LAGI ============
+  const [showAddToOrderModal, setShowAddToOrderModal] = useState(false);
+  const [additionalCart, setAdditionalCart] = useState({});
+  const [isAddingToOrder, setIsAddingToOrder] = useState(false);
 
   // Ref untuk scroll ke kategori
   const categoryRefs = useRef({});
@@ -89,7 +96,433 @@ function OrderMenu() {
     }
   }, [cart, tableNumber]);
 
-  // Load saved delivered items from localStorage
+  // Load additional cart from localStorage
+  useEffect(() => {
+    if (tableNumber && activeOrder?._id) {
+      const savedAdditionalCartKey = `additional_cart_${tableNumber}_${activeOrder._id}`;
+      const savedCart = localStorage.getItem(savedAdditionalCartKey);
+      if (savedCart) {
+        try {
+          const parsedCart = JSON.parse(savedCart);
+          setAdditionalCart(parsedCart);
+        } catch (e) {
+          console.error("Failed to parse saved additional cart", e);
+        }
+      }
+    }
+  }, [tableNumber, activeOrder?._id]);
+
+  // Save additional cart to localStorage
+  useEffect(() => {
+    if (tableNumber && activeOrder?._id && Object.keys(additionalCart).length > 0) {
+      const savedAdditionalCartKey = `additional_cart_${tableNumber}_${activeOrder._id}`;
+      localStorage.setItem(savedAdditionalCartKey, JSON.stringify(additionalCart));
+    } else if (tableNumber && activeOrder?._id && Object.keys(additionalCart).length === 0) {
+      const savedAdditionalCartKey = `additional_cart_${tableNumber}_${activeOrder._id}`;
+      localStorage.removeItem(savedAdditionalCartKey);
+    }
+  }, [additionalCart, tableNumber, activeOrder?._id]);
+
+  useEffect(() => {
+    if (!Array.isArray(menuItems) || menuItems.length === 0) return;
+
+    setItemOptions((prev) => {
+      const next = { ...prev };
+      menuItems.forEach((item) => {
+        if (!next[item._id]) {
+          next[item._id] = {
+            temperature: item.hasTemperature ? "Hangat" : null,
+            variantIndex:
+              item.hasVariants && Array.isArray(item.variants) && item.variants.length > 0
+                ? 0
+                : -1,
+          };
+        }
+      });
+      return next;
+    });
+  }, [menuItems]);
+
+  // ============ FUNGSI GET SELECTED OPTION ============
+  const getSelectedOption = useCallback(
+    (item) => {
+      const option = itemOptions[item._id] || {};
+      const temperature = item.hasTemperature
+        ? option.temperature || "Hangat"
+        : null;
+      const variantIndex = item.hasVariants
+        ? typeof option.variantIndex === "number"
+          ? option.variantIndex
+          : 0
+        : -1;
+      const variant = item.hasVariants
+        ? item.variants?.[variantIndex] || null
+        : null;
+      const extraTempPrice = item.hasTemperature && temperature === "Es"
+        ? Number(item.extraPriceForIce || 0)
+        : 0;
+      const extraVariantPrice = variant ? Number(variant.extraPrice || 0) : 0;
+      const optionLabelParts = [];
+      if (variant?.name) optionLabelParts.push(variant.name);
+      if (temperature) optionLabelParts.push(temperature);
+      return {
+        temperature,
+        variant,
+        variantIndex,
+        extraPrice: extraTempPrice + extraVariantPrice,
+        optionLabel: optionLabelParts.join(" / "),
+      };
+    },
+    [itemOptions],
+  );
+
+  // ============ SINKRONISASI HARGA CART DENGAN OPSI ============
+  useEffect(() => {
+    if (Object.keys(cart).length === 0) return;
+    
+    setCart((prevCart) => {
+      let hasChanges = false;
+      const updatedCart = { ...prevCart };
+      
+      Object.keys(updatedCart).forEach((cartKey) => {
+        const cartItem = updatedCart[cartKey];
+        const menuItem = menuItems.find(m => m._id === cartItem.itemId);
+        
+        if (menuItem) {
+          const selectedOption = getSelectedOption(menuItem);
+          const newPrice = Number(menuItem.price || 0) + Number(selectedOption.extraPrice || 0);
+          const newOptionLabel = selectedOption.optionLabel;
+          const newItemName = newOptionLabel ? `${menuItem.name} (${newOptionLabel})` : menuItem.name;
+          const newCartKey = `${menuItem._id}::${newOptionLabel || "default"}`;
+          
+          // Jika harga atau optionLabel berubah
+          if (cartItem.price !== newPrice || cartItem.optionLabel !== newOptionLabel) {
+            // Hapus item lama
+            delete updatedCart[cartKey];
+            // Tambah item baru dengan key dan harga update
+            updatedCart[newCartKey] = {
+              ...cartItem,
+              cartKey: newCartKey,
+              name: newItemName,
+              price: newPrice,
+              optionLabel: newOptionLabel,
+              temperature: selectedOption.temperature,
+              variantName: selectedOption.variant?.name || null,
+            };
+            hasChanges = true;
+          }
+        }
+      });
+      
+      return hasChanges ? updatedCart : prevCart;
+    });
+  }, [itemOptions, menuItems, getSelectedOption, cart]);
+    // ============ SINKRONISASI HARGA ADDITIONAL CART DENGAN OPSI ============
+  useEffect(() => {
+    if (Object.keys(additionalCart).length === 0) return;
+    
+    setAdditionalCart((prevCart) => {
+      let hasChanges = false;
+      const updatedCart = { ...prevCart };
+      
+      Object.keys(updatedCart).forEach((cartKey) => {
+        const cartItem = updatedCart[cartKey];
+        const menuItem = menuItems.find(m => m._id === cartItem.itemId);
+        
+        if (menuItem) {
+          const selectedOption = getSelectedOption(menuItem);
+          const newPrice = Number(menuItem.price || 0) + Number(selectedOption.extraPrice || 0);
+          const newOptionLabel = selectedOption.optionLabel;
+          const newItemName = newOptionLabel ? `${menuItem.name} (${newOptionLabel})` : menuItem.name;
+          const newCartKey = `${menuItem._id}::${newOptionLabel || "default"}`;
+          
+          // Jika harga atau optionLabel berubah
+          if (cartItem.price !== newPrice || cartItem.optionLabel !== newOptionLabel) {
+            // Hapus item lama
+            delete updatedCart[cartKey];
+            // Tambah item baru dengan key dan harga update
+            updatedCart[newCartKey] = {
+              ...cartItem,
+              cartKey: newCartKey,
+              name: newItemName,
+              price: newPrice,
+              optionLabel: newOptionLabel,
+              temperature: selectedOption.temperature,
+              variantName: selectedOption.variant?.name || null,
+            };
+            hasChanges = true;
+          }
+        }
+      });
+      
+      return hasChanges ? updatedCart : prevCart;
+    });
+  }, [itemOptions, menuItems, getSelectedOption, additionalCart]);
+
+  const handleOptionChange = (itemId, key, value) => {
+    setItemOptions((prev) => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        [key]: value,
+      },
+    }));
+  };
+
+  const getItemQuantity = useCallback(
+    (itemId) =>
+      Object.values(cart).reduce(
+        (sum, entry) => (entry.itemId === itemId ? sum + entry.quantity : sum),
+        0,
+      ),
+    [cart],
+  );
+
+  const getCartKey = (item, optionLabel) => {
+    return `${item._id}::${optionLabel || "default"}`;
+  };
+
+  const addToCart = useCallback(
+    (item) => {
+      const selectedOption = getSelectedOption(item);
+      const cartKey = getCartKey(item, selectedOption.optionLabel);
+      const unitPrice = Number(item.price || 0) + Number(selectedOption.extraPrice || 0);
+      const itemName = selectedOption.optionLabel
+        ? `${item.name} (${selectedOption.optionLabel})`
+        : item.name;
+
+      setCart((prev) => {
+        const existing = prev[cartKey];
+        return {
+          ...prev,
+          [cartKey]: {
+            cartKey,
+            itemId: item._id,
+            name: itemName,
+            category: item.category,
+            quantity: existing ? existing.quantity + 1 : 1,
+            price: unitPrice,
+            basePrice: Number(item.price || 0),
+            optionLabel: selectedOption.optionLabel,
+            temperature: selectedOption.temperature,
+            variantName: selectedOption.variant?.name || null,
+            description: item.description || "",
+          },
+        };
+      });
+    },
+    [getSelectedOption],
+  );
+
+  const removeFromCart = useCallback(
+    (item) => {
+      const selectedOption = getSelectedOption(item);
+      const cartKey = getCartKey(item, selectedOption.optionLabel);
+      setCart((prev) => {
+        const existing = prev[cartKey];
+        if (!existing) return prev;
+        if (existing.quantity <= 1) {
+          const next = { ...prev };
+          delete next[cartKey];
+          return next;
+        }
+        return {
+          ...prev,
+          [cartKey]: {
+            ...existing,
+            quantity: existing.quantity - 1,
+          },
+        };
+      });
+    },
+    [getSelectedOption],
+  );
+
+  // ============ FUNGSI UNTUK ADDITIONAL CART (PESAN LAGI) ============
+  const addToAdditionalCart = useCallback((item) => {
+    const selectedOption = getSelectedOption(item);
+    const cartKey = getCartKey(item, selectedOption.optionLabel);
+    const unitPrice = Number(item.price || 0) + Number(selectedOption.extraPrice || 0);
+    const itemName = selectedOption.optionLabel
+      ? `${item.name} (${selectedOption.optionLabel})`
+      : item.name;
+
+    setAdditionalCart((prev) => {
+      const existing = prev[cartKey];
+      return {
+        ...prev,
+        [cartKey]: {
+          cartKey,
+          itemId: item._id,
+          name: itemName,
+          category: item.category,
+          quantity: existing ? existing.quantity + 1 : 1,
+          price: unitPrice,
+          basePrice: Number(item.price || 0),
+          optionLabel: selectedOption.optionLabel,
+          temperature: selectedOption.temperature,
+          variantName: selectedOption.variant?.name || null,
+          description: item.description || "",
+        },
+      };
+    });
+  }, [getSelectedOption]);
+
+  const removeFromAdditionalCart = useCallback((item) => {
+    const selectedOption = getSelectedOption(item);
+    const cartKey = getCartKey(item, selectedOption.optionLabel);
+    setAdditionalCart((prev) => {
+      const existing = prev[cartKey];
+      if (!existing) return prev;
+      if (existing.quantity <= 1) {
+        const next = { ...prev };
+        delete next[cartKey];
+        return next;
+      }
+      return {
+        ...prev,
+        [cartKey]: {
+          ...existing,
+          quantity: existing.quantity - 1,
+        },
+      };
+    });
+  }, [getSelectedOption]);
+
+  const getAdditionalItemQuantity = useCallback(
+    (itemId) =>
+      Object.values(additionalCart).reduce(
+        (sum, entry) => (entry.itemId === itemId ? sum + entry.quantity : sum),
+        0,
+      ),
+    [additionalCart],
+  );
+
+  const additionalTotalPrice = useMemo(() => {
+    return Object.values(additionalCart).reduce(
+      (sum, entry) => sum + entry.price * entry.quantity,
+      0,
+    );
+  }, [additionalCart]);
+
+  const totalPrice = useMemo(() => {
+    return Object.values(cart).reduce(
+      (sum, entry) => sum + entry.price * entry.quantity,
+      0,
+    );
+  }, [cart]);
+
+  const handleOrder = async () => {
+    const token = localStorage.getItem("order_token");
+    if (!token || isTokenExpired(token)) {
+      handleSessionExpired();
+      return;
+    }
+    if (Object.keys(cart).length === 0) {
+      alert("Silakan pilih menu terlebih dahulu");
+      return;
+    }
+
+    const items = Object.values(cart)
+      .filter(entry => entry.quantity > 0 && entry.name && entry.name !== "Unknown")
+      .map((entry) => ({
+        productId: entry.itemId,
+        name: entry.name,
+        description: entry.description || "",
+        quantity: entry.quantity,
+        price: entry.price,
+        category: entry.category,
+        status: "pending",
+      }));
+
+    if (items.length === 0) {
+      alert("Tidak ada item valid untuk dipesan");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setShowOrderAnimation(true);
+    setAnimationProgress(0);
+
+    try {
+      if (activeOrder && activeOrder._id) {
+        await addItemsToOrder(activeOrder._id, { items, totalPrice });
+      } else {
+        await createOrder({ tableNumber, items, totalPrice, token });
+      }
+
+      setCart({});
+      const savedCartKey = `cart_${tableNumber}`;
+      localStorage.removeItem(savedCartKey);
+
+      for (let i = 0; i <= 100; i += 5) {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        setAnimationProgress(i);
+      }
+
+      setTimeout(() => setShowOrderAnimation(false), 500);
+    } catch (err) {
+      setShowOrderAnimation(false);
+      if (err.response?.status === 401) handleSessionExpired();
+      else alert(err.response?.data?.message || "Gagal membuat pesanan.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // ============ FUNGSI HANDLE TAMBAH KE PESANAN AKTIF ============
+  const handleAddToExistingOrder = async () => {
+    const token = localStorage.getItem("order_token");
+    if (!token || isTokenExpired(token)) {
+      handleSessionExpired();
+      return;
+    }
+    if (Object.keys(additionalCart).length === 0) {
+      alert("Silakan pilih menu terlebih dahulu");
+      return;
+    }
+
+    const newItems = Object.values(additionalCart)
+      .filter(entry => entry.quantity > 0 && entry.name && entry.name !== "Unknown")
+      .map((entry) => ({
+        productId: entry.itemId,
+        name: entry.name,
+        description: entry.description || "",
+        quantity: entry.quantity,
+        price: entry.price,
+        category: entry.category,
+        status: "pending",
+      }));
+
+    setIsAddingToOrder(true);
+    setShowOrderAnimation(true);
+    setAnimationProgress(0);
+
+    try {
+      await addItemsToOrder(activeOrder._id, { items: newItems, totalPrice: additionalTotalPrice });
+      
+      setAdditionalCart({});
+      setShowAddToOrderModal(false);
+      
+      const savedAdditionalCartKey = `additional_cart_${tableNumber}_${activeOrder._id}`;
+      localStorage.removeItem(savedAdditionalCartKey);
+
+      for (let i = 0; i <= 100; i += 5) {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        setAnimationProgress(i);
+      }
+
+      setTimeout(() => setShowOrderAnimation(false), 500);
+      alert("Menu berhasil ditambahkan ke pesanan!");
+    } catch (err) {
+      setShowOrderAnimation(false);
+      console.error("Error adding items:", err);
+      alert(err.response?.data?.message || "Gagal menambahkan menu.");
+    } finally {
+      setIsAddingToOrder(false);
+    }
+  };
+
   useEffect(() => {
     if (tableNumber && activeOrder?._id) {
       const savedDeliveredKey = `delivered_${tableNumber}_${activeOrder._id}`;
@@ -136,18 +569,29 @@ function OrderMenu() {
     }
   }, [orderProgress, tableNumber, activeOrder?._id]);
 
-  // Clear saved data when order is completed (paid)
+  // Clear saved data when order is completed (paid) and redirect customer
   useEffect(() => {
     if (activeOrder?.status === "paid" && tableNumber && activeOrder?._id) {
       const savedCartKey = `cart_${tableNumber}`;
       const savedDeliveredKey = `delivered_${tableNumber}_${activeOrder._id}`;
       const savedProgressKey = `progress_${tableNumber}_${activeOrder._id}`;
+      const savedAdditionalCartKey = `additional_cart_${tableNumber}_${activeOrder._id}`;
 
       localStorage.removeItem(savedCartKey);
       localStorage.removeItem(savedDeliveredKey);
       localStorage.removeItem(savedProgressKey);
+      localStorage.removeItem(savedAdditionalCartKey);
+      localStorage.removeItem("order_token");
+
+      if (!hasShownOrderCompleteAlert) {
+        setHasShownOrderCompleteAlert(true);
+        alert("Pesanan selesai, terima kasih!");
+        setTimeout(() => {
+          navigate("/");
+        }, 2000);
+      }
     }
-  }, [activeOrder?.status, tableNumber, activeOrder?._id]);
+  }, [activeOrder?.status, tableNumber, activeOrder?._id, hasShownOrderCompleteAlert, navigate]);
 
   // Calculate statistics for delivered items
   const deliveredStats = useMemo(() => {
@@ -335,140 +779,6 @@ function OrderMenu() {
     );
   };
 
-  const addToCart = useCallback(
-    (item) => {
-      setCart((prev) => {
-        const newCart = { ...prev };
-
-        if (item.category === "Paket" && item.includesDrinks) {
-          newCart[item._id] = (newCart[item._id] || 0) + 1;
-          const packageDrinks = getPackageDrinks(item);
-          packageDrinks.forEach((drink) => {
-            const packageKey = `${drink._id}_package_${item._id}`;
-            newCart[packageKey] = (newCart[packageKey] || 0) + 1;
-          });
-        } else {
-          newCart[item._id] = (newCart[item._id] || 0) + 1;
-        }
-
-        return newCart;
-      });
-    },
-    [menuItems],
-  );
-
-  const removeFromCart = useCallback(
-    (item) => {
-      setCart((prev) => {
-        const newCart = { ...prev };
-
-        if (item.category === "Paket" && item.includesDrinks) {
-          const packageQty = newCart[item._id] || 0;
-          if (packageQty <= 1) {
-            delete newCart[item._id];
-          } else {
-            newCart[item._id] = packageQty - 1;
-          }
-
-          const packageDrinks = getPackageDrinks(item);
-          packageDrinks.forEach((drink) => {
-            const packageKey = `${drink._id}_package_${item._id}`;
-            const drinkQty = newCart[packageKey] || 0;
-            if (drinkQty <= 1) {
-              delete newCart[packageKey];
-            } else {
-              newCart[packageKey] = drinkQty - 1;
-            }
-          });
-        } else {
-          const qty = newCart[item._id] || 0;
-          if (qty <= 1) {
-            delete newCart[item._id];
-          } else {
-            newCart[item._id] = qty - 1;
-          }
-        }
-
-        return newCart;
-      });
-    },
-    [menuItems],
-  );
-
-  const totalPrice = useMemo(() => {
-    if (!Array.isArray(menuItems) || menuItems.length === 0) return 0;
-    return Object.entries(cart).reduce((sum, [itemId, qty]) => {
-      if (itemId.includes("_package_")) {
-        return sum;
-      }
-      const item = menuItems.find((m) => m._id === itemId);
-      if (item && item.price) {
-        return sum + qty * item.price;
-      }
-      return sum;
-    }, 0);
-  }, [cart, menuItems]);
-
-  const handleOrder = async () => {
-    const token = localStorage.getItem("order_token");
-    if (!token || isTokenExpired(token)) {
-      handleSessionExpired();
-      return;
-    }
-    if (Object.keys(cart).length === 0) {
-      alert("Silakan pilih menu terlebih dahulu");
-      return;
-    }
-
-    const items = [];
-
-    for (const [itemId, qty] of Object.entries(cart)) {
-      if (itemId.includes("_package_")) {
-        continue;
-      }
-
-      const item = menuItems.find((m) => m._id === itemId);
-      if (item) {
-        items.push({
-          productId: item._id,
-          name: item.name,
-          description: item.description || "",
-          quantity: qty,
-          price: item.price,
-          category: item.category,
-          status: "pending",
-          includesDrinks: item.includesDrinks || false,
-          includedDrinkIds: item.includedDrinkIds || [],
-        });
-      }
-    }
-
-    setIsSubmitting(true);
-    setShowOrderAnimation(true);
-    setAnimationProgress(0);
-
-    try {
-      await createOrder({ tableNumber, items, totalPrice, token });
-      setCart({});
-
-      const savedCartKey = `cart_${tableNumber}`;
-      localStorage.removeItem(savedCartKey);
-
-      for (let i = 0; i <= 100; i += 5) {
-        await new Promise((resolve) => setTimeout(resolve, 30));
-        setAnimationProgress(i);
-      }
-
-      setTimeout(() => setShowOrderAnimation(false), 500);
-    } catch (err) {
-      setShowOrderAnimation(false);
-      if (err.response?.status === 401) handleSessionExpired();
-      else alert(err.response?.data?.message || "Gagal membuat pesanan.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const scrollToCategory = (category) => {
     setActiveCategory(category);
     const ref = categoryRefs.current[category];
@@ -606,9 +916,10 @@ function OrderMenu() {
           </div>
         )}
 
-        {!activeOrder && <FrequentlyBought onAddToCart={addToCart} menuItems={menuItems} />}
+        {/* 🔥 KOMPONEN FREQUENTLY BOUGHT DINONAKTIFKAN SEMENTARA */}
+        {/* <FrequentlyBought onAddToCart={addToCart} menuItems={menuItems} /> */}
 
-        {activeOrder ? (
+        {activeOrder && (
           <div style={{ padding: "0 20px" }}>
             <div style={styles.statusContainer}>
               <div style={styles.statusHeader}>
@@ -731,8 +1042,21 @@ function OrderMenu() {
                 </div>
               </div>
             )}
+
+            {/* TOMBOL PESAN LAGI */}
+            <div style={styles.addMoreButtonContainer}>
+              <button
+                style={styles.addMoreButton}
+                onClick={() => setShowAddToOrderModal(true)}
+              >
+                + Pesan Lagi
+              </button>
+            </div>
           </div>
-        ) : (
+        )}
+        
+        {/* 🔥 HANYA TAMPILKAN MENU KETIKA TIDAK ADA ACTIVE ORDER */}
+        {!activeOrder && (
           <>
             <div style={styles.categoryNav}>
               {CATEGORIES.map((cat) => {
@@ -768,7 +1092,9 @@ function OrderMenu() {
                         <MenuItem
                           key={item._id}
                           item={item}
-                          qty={cart[item._id] || 0}
+                          qty={getItemQuantity(item._id)}
+                          selectedOption={itemOptions[item._id] || {}}
+                          onOptionChange={handleOptionChange}
                           onAdd={addToCart}
                           onRemove={removeFromCart}
                         />
@@ -814,15 +1140,114 @@ function OrderMenu() {
           </button>
         </div>
       )}
+
+      {/* MODAL UNTUK PESAN LAGI */}
+      {showAddToOrderModal && (
+        <div style={styles.modalOverlay} onClick={() => setShowAddToOrderModal(false)}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>Tambah Menu ke Pesanan</h3>
+              <button style={styles.modalClose} onClick={() => setShowAddToOrderModal(false)}>✕</button>
+            </div>
+            
+            <div style={styles.modalBody}>
+              <div style={styles.modalCategoryNav}>
+                {CATEGORIES.map((cat) => {
+                  const hasItems = menuByCategory.find((c) => c.name === cat)?.items.length > 0;
+                  if (!hasItems) return null;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => {
+                        const ref = categoryRefs.current[cat];
+                        if (ref) {
+                          ref.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }
+                      }}
+                      style={styles.modalNavButton}
+                    >
+                      {cat}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <div style={{ maxHeight: "400px", overflowY: "auto", padding: "0 10px" }}>
+                {menuByCategory.map(
+                  (cat) =>
+                    cat.items.length > 0 && (
+                      <div key={cat.name} style={{ marginBottom: "25px" }}>
+                        <h3 style={styles.categoryHeading}>{cat.name}</h3>
+                        {cat.items.map((item) => (
+                          <MenuItem
+                            key={item._id}
+                            item={item}
+                            qty={getAdditionalItemQuantity(item._id)}
+                            selectedOption={itemOptions[item._id] || {}}
+                            onOptionChange={handleOptionChange}
+                            onAdd={addToAdditionalCart}
+                            onRemove={removeFromAdditionalCart}
+                          />
+                        ))}
+                      </div>
+                    ),
+                )}
+              </div>
+            </div>
+            
+            <div style={styles.modalFooter}>
+              <div style={styles.modalTotal}>
+                <span>Total Tambahan:</span>
+                <span style={{ color: COLORS.orange, fontWeight: "bold", fontSize: "18px" }}>
+                  Rp {additionalTotalPrice.toLocaleString()}
+                </span>
+              </div>
+              <button
+                style={{
+                  ...styles.orderButton,
+                  backgroundColor: COLORS.orange,
+                  opacity: isAddingToOrder || Object.keys(additionalCart).length === 0 ? 0.7 : 1,
+                }}
+                onClick={handleAddToExistingOrder}
+                disabled={isAddingToOrder || Object.keys(additionalCart).length === 0}
+              >
+                {isAddingToOrder ? <div style={styles.buttonSpinner} /> : `Tambah ke Pesanan (Rp ${additionalTotalPrice.toLocaleString()})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Footer />
     </div>
   );
 }
 
-// ================= MENU ITEM COMPONENT (DIPERBAIKI) =================
-const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
+// ================= MENU ITEM COMPONENT =================
+const MenuItem = React.memo(function MenuItem({ item, qty, selectedOption, onOptionChange, onAdd, onRemove }) {
   const ASSET_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
   const [imgError, setImgError] = useState(false);
+
+  const temperature = item.hasTemperature
+    ? selectedOption?.temperature || "Hangat"
+    : null;
+  const variantIndex = item.hasVariants
+    ? typeof selectedOption?.variantIndex === "number"
+      ? selectedOption.variantIndex
+      : 0
+    : -1;
+  const variant = item.hasVariants
+    ? item.variants?.[variantIndex] || null
+    : null;
+  const extraTempPrice = item.hasTemperature && temperature === "Es"
+    ? Number(item.extraPriceForIce || 0)
+    : 0;
+  const extraVariantPrice = variant ? Number(variant.extraPrice || 0) : 0;
+  const displayPrice = Number(item.price || 0) + extraTempPrice + extraVariantPrice;
+  const optionLabelParts = [];
+  if (variant?.name) optionLabelParts.push(variant.name);
+  if (temperature) optionLabelParts.push(temperature);
+  const optionLabel = optionLabelParts.join(" / ");
 
   const getImageUrl = () => {
     if (imgError) {
@@ -854,7 +1279,49 @@ const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
       <div style={styles.menuInfo}>
         <div style={styles.menuName}>{item.name || "Unknown"}</div>
         {item.description && <div style={styles.menuDesc}>{item.description}</div>}
-        <div style={styles.menuPrice}>Rp {(item.price || 0).toLocaleString()}</div>
+        <div style={styles.menuPrice}>Rp {displayPrice.toLocaleString()}</div>
+        {item.hasTemperature && item.category === "Minuman" && (
+          <div style={styles.optionSection}>
+            <div style={styles.optionRow}>
+              {[
+                { label: "Hangat", value: "Hangat" },
+                { label: "Es", value: "Es" },
+              ].map((option) => (
+                <label key={option.value} style={styles.optionRadioLabel}>
+                  <input
+                    type="radio"
+                    name={`temperature-${item._id}`}
+                    value={option.value}
+                    checked={temperature === option.value}
+                    onChange={() =>
+                      onOptionChange(item._id, "temperature", option.value)
+                    }
+                    style={styles.radioInput}
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+        {item.hasVariants && item.category === "Makanan" && Array.isArray(item.variants) && item.variants.length > 0 && (
+          <div style={styles.optionSection}>
+            <label style={styles.optionLabel}>Varian</label>
+            <select
+              style={styles.optionSelect}
+              value={variantIndex}
+              onChange={(e) =>
+                onOptionChange(item._id, "variantIndex", Number(e.target.value))
+              }
+            >
+              {item.variants.map((variantItem, idx) => (
+                <option key={variantItem.name + idx} value={idx}>
+                  {variantItem.name} {variantItem.extraPrice ? `(+Rp ${variantItem.extraPrice.toLocaleString()})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
       <div style={styles.menuAction}>
         {qty > 0 ? (
@@ -879,6 +1346,7 @@ const MenuItem = React.memo(function MenuItem({ item, qty, onAdd, onRemove }) {
 });
 
 const styles = {
+  // ... (styles tetap sama seperti sebelumnya)
   pageWrapper: {
     backgroundColor: COLORS.white,
     minHeight: "100vh",
@@ -979,6 +1447,44 @@ const styles = {
     color: "#888",
     marginBottom: "6px",
     lineHeight: "1.4",
+  },
+  optionSection: {
+    marginTop: "10px",
+  },
+  optionLabel: {
+    fontSize: "12px",
+    color: "#555",
+    marginBottom: "8px",
+    fontWeight: "600",
+  },
+  optionRow: {
+    display: "flex",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+  optionRadioLabel: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+    border: "1px solid #E5E7EB",
+    borderRadius: "9999px",
+    padding: "8px 12px",
+    fontSize: "12px",
+    cursor: "pointer",
+    backgroundColor: "#fbfbfb",
+  },
+  radioInput: {
+    cursor: "pointer",
+  },
+  optionSelect: {
+    width: "100%",
+    border: "1px solid #E5E7EB",
+    borderRadius: "12px",
+    padding: "10px",
+    outline: "none",
+    fontSize: "13px",
+    color: "#333",
+    backgroundColor: "#fff",
   },
   menuPrice: { fontWeight: "800", color: COLORS.orange, fontSize: "15px" },
   menuAction: { flexShrink: 0 },
@@ -1314,6 +1820,102 @@ const styles = {
     padding: "10px 20px",
     borderRadius: "12px",
     fontSize: "13px",
+  },
+  // ============ STYLE UNTUK FITUR PESAN LAGI ============
+  addMoreButtonContainer: {
+    marginTop: "20px",
+    marginBottom: "20px",
+  },
+  addMoreButton: {
+    width: "100%",
+    padding: "14px",
+    backgroundColor: "#f5f5f5",
+    border: `2px dashed ${COLORS.orange}`,
+    borderRadius: "15px",
+    color: COLORS.orange,
+    fontWeight: "bold",
+    fontSize: "16px",
+    cursor: "pointer",
+    transition: "all 0.3s ease",
+  },
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    zIndex: 1000,
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: "30px",
+    width: "90%",
+    maxWidth: "500px",
+    maxHeight: "80vh",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  modalHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "20px",
+    borderBottom: "1px solid #eee",
+  },
+  modalTitle: {
+    fontSize: "18px",
+    fontWeight: "bold",
+    color: COLORS.textDark,
+    margin: 0,
+  },
+  modalClose: {
+    background: "none",
+    border: "none",
+    fontSize: "24px",
+    cursor: "pointer",
+    color: "#999",
+  },
+  modalBody: {
+    flex: 1,
+    overflowY: "auto",
+    padding: "10px 0",
+  },
+  modalFooter: {
+    padding: "20px",
+    borderTop: "1px solid #eee",
+    backgroundColor: "#fff",
+  },
+  modalTotal: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "15px",
+    fontSize: "16px",
+  },
+  modalCategoryNav: {
+    display: "flex",
+    justifyContent: "space-around",
+    padding: "0 16px",
+    marginBottom: "20px",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+  modalNavButton: {
+    flex: 1,
+    padding: "8px 0",
+    borderRadius: "20px",
+    border: "none",
+    fontSize: "12px",
+    fontWeight: "500",
+    cursor: "pointer",
+    backgroundColor: "#f5f5f5",
+    color: COLORS.textDark,
+    textAlign: "center",
   },
 };
 

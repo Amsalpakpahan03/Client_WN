@@ -17,7 +17,10 @@ function HomePage() {
       try {
         const res = await axios.get(`${API_BASE}/menu`);
         const data = res.data.data || res.data;
-        setMenuItems(data);
+        const visibleItems = Array.isArray(data)
+          ? data.filter((item) => item.isAvailable !== false)
+          : [];
+        setMenuItems(visibleItems);
       } catch (err) {
         console.error("Gagal fetch menu:", err);
       } finally {

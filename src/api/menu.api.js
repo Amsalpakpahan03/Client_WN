@@ -41,5 +41,9 @@ export const MenuAPI = {
 
   delete(id) {
     return api.delete(`/api/menu/${id}`);
-  }
+  },
+
+  toggleAvailability(id) {
+    return api.patch(`/api/admin/menu/${id}/toggle-availability`);
+  },
 };

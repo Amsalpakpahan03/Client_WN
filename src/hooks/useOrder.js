@@ -115,6 +115,64 @@ export const useOrder = (tableNumber) => {
     }
   }, [tableNumber, getOrCreateToken, validateTableNumber]);
 
+  const addItemsToOrder = useCallback(async (orderId, payload) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      if (!validateTableNumber()) {
+        throw new Error("Table number is required. Please scan QR code again.");
+      }
+
+      if (!orderId) {
+        throw new Error("Order ID is required to add items to an existing order.");
+      }
+
+      const items = (payload.items || []).map(item => ({
+        productId: item.productId || null,
+        name: item.name || "Unknown",
+        quantity: Number(item.quantity) || 0,
+        price: Number(item.price) || 0,
+        category: item.category || "Lainnya",
+        status: item.status || "pending",
+        description: item.description || "",
+        isIncludedInPackage: item.isIncludedInPackage || false,
+        packageName: item.packageName || null
+      }));
+
+      const finalPayload = {
+        items,
+        totalPrice: Number(payload.totalPrice || 0)
+      };
+
+      const res = await OrderAPI.addItems(orderId, finalPayload);
+      const updatedOrder = res.data?.data || res.data;
+
+      if (!updatedOrder || !updatedOrder._id) {
+        throw new Error("Invalid response: missing updated order data");
+      }
+
+      setActiveOrder(updatedOrder);
+      localStorage.setItem("activeOrderId", updatedOrder._id);
+      return updatedOrder;
+    } catch (err) {
+      const errMsg = err.response?.data?.message || err.message || "Unknown error";
+      const errStatus = err.response?.status;
+
+      console.error("[ORDER] ❌ Add items error:", errMsg);
+      console.error("[ORDER] Error status:", errStatus);
+
+      if (err.response?.data) {
+        console.error("[ORDER] Server error response:", err.response.data);
+      }
+
+      setError(errMsg);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [validateTableNumber]);
+
   // Restore order from localStorage
   useEffect(() => {
     if (!tableNumber) return;
@@ -168,6 +226,7 @@ export const useOrder = (tableNumber) => {
     isLoading,
     error,
     createOrder,
+    addItemsToOrder,
     updateOrderFromSocket,
   };
 };

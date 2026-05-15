@@ -27,8 +27,9 @@ export function useMenu() {
           menuData = [];
         }
         
-        console.log("[useMenu] Menu data loaded:", menuData.length, "items");
-        setMenuItems(menuData);
+        const visibleMenuData = menuData.filter((item) => item.isAvailable !== false);
+        console.log("[useMenu] Menu data loaded:", visibleMenuData.length, "items");
+        setMenuItems(visibleMenuData);
       } catch (err) {
         console.error("[useMenu] Error loading menu:", err);
         setError(err.message);
