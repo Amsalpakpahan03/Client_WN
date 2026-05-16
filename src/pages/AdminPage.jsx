@@ -241,7 +241,8 @@ const AdminPage = () => {
 
   const toggleProductAvailability = async (product) => {
     setIsUpdatingProductId(product._id);
-    const actionLabel = product.isAvailable === false ? "diaktifkan" : "dinonaktifkan";
+    const actionLabel =
+      product.isAvailable === false ? "diaktifkan" : "dinonaktifkan";
 
     try {
       try {
@@ -270,14 +271,18 @@ const AdminPage = () => {
   // Fungsi untuk mengekstrak minuman dari paket
   const expandPackageItems = (items) => {
     const expandedItems = [];
-    
-    items.forEach(item => {
+
+    items.forEach((item) => {
       expandedItems.push(item);
-      
+
       // Jika item adalah paket dengan minuman
-      if (item.category === "Paket" && item.includesDrinks && item.includedDrinkIds) {
-        item.includedDrinkIds.forEach(drinkId => {
-          const drink = availableDrinks.find(d => d._id === drinkId);
+      if (
+        item.category === "Paket" &&
+        item.includesDrinks &&
+        item.includedDrinkIds
+      ) {
+        item.includedDrinkIds.forEach((drinkId) => {
+          const drink = availableDrinks.find((d) => d._id === drinkId);
           if (drink) {
             expandedItems.push({
               ...drink,
@@ -291,7 +296,7 @@ const AdminPage = () => {
         });
       }
     });
-    
+
     return expandedItems;
   };
 
@@ -398,72 +403,75 @@ const AdminPage = () => {
     });
   };
 
-const handleAddProduct = async (e) => {
-  e.preventDefault();
-  
-  // Validasi file size (opsional, cegah file terlalu besar)
-  if (newProduct.imageFile && newProduct.imageFile.size > 10 * 1024 * 1024) {
-    showAlert("error", "Ukuran file terlalu besar! Maksimal 10MB");
-    return;
-  }
-  
-  const formData = new FormData();
-  formData.append("name", newProduct.name);
-  formData.append("price", newProduct.price);
-  formData.append("description", newProduct.desc);
-  formData.append("category", newProduct.category);
-  formData.append("hasTemperature", newProduct.hasTemperature);
-  formData.append("extraPriceForIce", newProduct.extraPriceForIce);
-  formData.append("hasVariants", newProduct.hasVariants);
-  if (newProduct.hasVariants && Array.isArray(newProduct.variants)) {
-    formData.append("variants", JSON.stringify(newProduct.variants));
-  }
-  if (newProduct.imageFile) formData.append("image", newProduct.imageFile);
+  const handleAddProduct = async (e) => {
+    e.preventDefault();
 
-  if (newProduct.category === "Paket") {
-    formData.append("includesDrinks", newProduct.includesDrinks);
-    if (newProduct.includesDrinks && newProduct.includedDrinkIds.length > 0) {
-      formData.append(
-        "includedDrinkIds",
-        JSON.stringify(newProduct.includedDrinkIds),
-      );
+    // Validasi file size (opsional, cegah file terlalu besar)
+    if (newProduct.imageFile && newProduct.imageFile.size > 10 * 1024 * 1024) {
+      showAlert("error", "Ukuran file terlalu besar! Maksimal 10MB");
+      return;
     }
-  }
 
-  try {
-    // GANTI: api.post → uploadApi.post (hapus headers manual)
-    await uploadApi.post("/api/menu", formData);
-    showAlert("success", "Menu berhasil ditambahkan!");
-    setNewProduct({
-      name: "",
-      price: "",
-      desc: "",
-      category: "Makanan",
-      imageFile: null,
-      includesDrinks: false,
-      includedDrinkIds: [],
-      hasTemperature: false,
-      extraPriceForIce: 1000,
-      hasVariants: true,
-      variants: [
-        { name: "Dengan Telur", extraPrice: 3000 },
-        { name: "Tanpa Telor", extraPrice: 0 },
-      ],
-    });
-    setImagePreview(null);
-    fetchProducts();
-  } catch (err) {
-    console.error("Upload error:", err);
-    if (err.code === "ECONNABORTED") {
-      showAlert("error", "Upload timeout! File terlalu besar atau koneksi lambat. Coba kompres gambar.");
-    } else {
-      showAlert(
-        "error",
-        `Gagal menambah menu: ${err.response?.data?.message || err.message}`,
-      );
+    const formData = new FormData();
+    formData.append("name", newProduct.name);
+    formData.append("price", newProduct.price);
+    formData.append("description", newProduct.desc);
+    formData.append("category", newProduct.category);
+    formData.append("hasTemperature", newProduct.hasTemperature);
+    formData.append("extraPriceForIce", newProduct.extraPriceForIce);
+    formData.append("hasVariants", newProduct.hasVariants);
+    if (newProduct.hasVariants && Array.isArray(newProduct.variants)) {
+      formData.append("variants", JSON.stringify(newProduct.variants));
     }
-  }
-};
+    if (newProduct.imageFile) formData.append("image", newProduct.imageFile);
+
+    if (newProduct.category === "Paket") {
+      formData.append("includesDrinks", newProduct.includesDrinks);
+      if (newProduct.includesDrinks && newProduct.includedDrinkIds.length > 0) {
+        formData.append(
+          "includedDrinkIds",
+          JSON.stringify(newProduct.includedDrinkIds),
+        );
+      }
+    }
+
+    try {
+      // GANTI: api.post → uploadApi.post (hapus headers manual)
+      await uploadApi.post("/api/menu", formData);
+      showAlert("success", "Menu berhasil ditambahkan!");
+      setNewProduct({
+        name: "",
+        price: "",
+        desc: "",
+        category: "Makanan",
+        imageFile: null,
+        includesDrinks: false,
+        includedDrinkIds: [],
+        hasTemperature: false,
+        extraPriceForIce: 1000,
+        hasVariants: true,
+        variants: [
+          { name: "Dengan Telur", extraPrice: 3000 },
+          { name: "Tanpa Telor", extraPrice: 0 },
+        ],
+      });
+      setImagePreview(null);
+      fetchProducts();
+    } catch (err) {
+      console.error("Upload error:", err);
+      if (err.code === "ECONNABORTED") {
+        showAlert(
+          "error",
+          "Upload timeout! File terlalu besar atau koneksi lambat. Coba kompres gambar.",
+        );
+      } else {
+        showAlert(
+          "error",
+          `Gagal menambah menu: ${err.response?.data?.message || err.message}`,
+        );
+      }
+    }
+  };
 
   const openDeleteModal = (id, name) => {
     setDeleteModal({
@@ -665,7 +673,13 @@ const handleAddProduct = async (e) => {
                             </span>
                           </div>
 
-                          <div style={isPaid ? styles.tableNumberWrapperDisabled : styles.tableNumberWrapper}>
+                          <div
+                            style={
+                              isPaid
+                                ? styles.tableNumberWrapperDisabled
+                                : styles.tableNumberWrapper
+                            }
+                          >
                             <span style={styles.tableNumberLabel}>Meja</span>
                             <span style={styles.tableNumberValue}>
                               {o.tableNumber}
@@ -681,8 +695,8 @@ const handleAddProduct = async (e) => {
                             {o.status === "pending"
                               ? "🔔 BARU"
                               : o.status === "paid"
-                              ? "✅ SELESAI"
-                              : o.status.toUpperCase()}
+                                ? "✅ SELESAI"
+                                : o.status.toUpperCase()}
                           </span>
                         </div>
 
@@ -742,11 +756,51 @@ const handleAddProduct = async (e) => {
                                         >
                                           {item.quantity}x
                                         </span>
+                                        {/* <span style={styles.categoryItemName}>
+                                          {item.name}
+                                          {item.isIncludedInPackage && (
+                                            <span style={styles.packageBadge}>
+                                              dari {item.packageName}
+                                            </span>
+                                          )}
+                                        </span> */}
                                         <span style={styles.categoryItemName}>
                                           {item.name}
                                           {item.isIncludedInPackage && (
                                             <span style={styles.packageBadge}>
                                               dari {item.packageName}
+                                            </span>
+                                          )}
+                                          {/* BADGE UNTUK OPSI ES/HANGAT */}
+                                          {item.temperature && (
+                                            <span
+                                              style={{
+                                                ...styles.optionBadge,
+                                                backgroundColor:
+                                                  item.temperature === "Es"
+                                                    ? "#DBEAFE"
+                                                    : "#FEF3C7",
+                                                color:
+                                                  item.temperature === "Es"
+                                                    ? "#1E40AF"
+                                                    : "#D97706",
+                                              }}
+                                            >
+                                              {item.temperature === "Es"
+                                                ? "🥤 Es"
+                                                : "☕ Hangat"}
+                                            </span>
+                                          )}
+                                          {/* BADGE UNTUK VARIAN MAKANAN */}
+                                          {item.variantName && (
+                                            <span
+                                              style={{
+                                                ...styles.optionBadge,
+                                                backgroundColor: "#D1FAE5",
+                                                color: "#065F46",
+                                              }}
+                                            >
+                                              🍳 {item.variantName}
                                             </span>
                                           )}
                                         </span>
@@ -783,7 +837,8 @@ const handleAddProduct = async (e) => {
                             );
                           })}
                         </div>
-                        {!isPaid && hasUndeliveredDrinks(o) &&
+                        {!isPaid &&
+                          hasUndeliveredDrinks(o) &&
                           o.status !== "served" &&
                           o.status !== "paid" && (
                             <button
@@ -798,7 +853,11 @@ const handleAddProduct = async (e) => {
                           <span style={styles.orderId}>
                             #{o._id.slice(-6).toUpperCase()}
                           </span>
-                          <span style={isPaid ? styles.orderTotalPaid : styles.orderTotal}>
+                          <span
+                            style={
+                              isPaid ? styles.orderTotalPaid : styles.orderTotal
+                            }
+                          >
                             Rp {o.totalPrice?.toLocaleString()}
                           </span>
                         </div>
@@ -899,11 +958,26 @@ const handleAddProduct = async (e) => {
                           setNewProduct({
                             ...newProduct,
                             category,
-                            includesDrinks: category === "Paket" ? newProduct.includesDrinks : false,
-                            includedDrinkIds: category === "Paket" ? newProduct.includedDrinkIds : [],
-                            hasTemperature: category === "Minuman" ? newProduct.hasTemperature : false,
-                            extraPriceForIce: category === "Minuman" ? newProduct.extraPriceForIce : 1000,
-                            hasVariants: category === "Makanan" ? newProduct.hasVariants : false,
+                            includesDrinks:
+                              category === "Paket"
+                                ? newProduct.includesDrinks
+                                : false,
+                            includedDrinkIds:
+                              category === "Paket"
+                                ? newProduct.includedDrinkIds
+                                : [],
+                            hasTemperature:
+                              category === "Minuman"
+                                ? newProduct.hasTemperature
+                                : false,
+                            extraPriceForIce:
+                              category === "Minuman"
+                                ? newProduct.extraPriceForIce
+                                : 1000,
+                            hasVariants:
+                              category === "Makanan"
+                                ? newProduct.hasVariants
+                                : false,
                           });
                         }}
                       >
@@ -934,7 +1008,9 @@ const handleAddProduct = async (e) => {
                       {newProduct.hasTemperature && (
                         <div style={styles.inputRow}>
                           <div style={{ flex: 1 }}>
-                            <label style={styles.label}>Biaya tambahan Es (Rp)</label>
+                            <label style={styles.label}>
+                              Biaya tambahan Es (Rp)
+                            </label>
                             <input
                               style={styles.input}
                               type="number"
@@ -973,14 +1049,25 @@ const handleAddProduct = async (e) => {
                       {newProduct.hasVariants && (
                         <div style={styles.variantSection}>
                           {newProduct.variants.map((variant, idx) => (
-                            <div key={`${variant.name}-${idx}`} style={styles.variantRow}>
+                            <div
+                              key={`${variant.name}-${idx}`}
+                              style={styles.variantRow}
+                            >
                               <input
                                 type="text"
                                 placeholder="Nama varian"
-                                style={{ ...styles.input, flex: 2, marginRight: 8 }}
+                                style={{
+                                  ...styles.input,
+                                  flex: 2,
+                                  marginRight: 8,
+                                }}
                                 value={variant.name}
                                 onChange={(e) =>
-                                  handleVariantChange(idx, "name", e.target.value)
+                                  handleVariantChange(
+                                    idx,
+                                    "name",
+                                    e.target.value,
+                                  )
                                 }
                                 required
                               />
@@ -988,7 +1075,11 @@ const handleAddProduct = async (e) => {
                                 type="number"
                                 min="0"
                                 placeholder="Harga tambahan"
-                                style={{ ...styles.input, flex: 1, marginRight: 8 }}
+                                style={{
+                                  ...styles.input,
+                                  flex: 1,
+                                  marginRight: 8,
+                                }}
                                 value={variant.extraPrice}
                                 onChange={(e) =>
                                   handleVariantChange(
@@ -1166,7 +1257,8 @@ const handleAddProduct = async (e) => {
                       style={{
                         ...styles.productCard,
                         opacity: p.isAvailable === false ? 0.5 : 1,
-                        filter: p.isAvailable === false ? "grayscale(0.75)" : "none",
+                        filter:
+                          p.isAvailable === false ? "grayscale(0.75)" : "none",
                       }}
                     >
                       <div style={styles.productImageWrapper}>
@@ -1906,7 +1998,17 @@ const styles = {
     borderRadius: 16,
     color: "#9CA3AF",
   },
+  optionBadge: {
+  display: "inline-block",
+  fontSize: "10px",
+  fontWeight: "bold",
+  padding: "2px 8px",
+  borderRadius: "20px",
+  marginLeft: "8px",
+  border: "1px solid rgba(0,0,0,0.05)",
+},
 };
+
 
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
