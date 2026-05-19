@@ -56,6 +56,8 @@ function OrderMenu() {
   const [showAddToOrderModal, setShowAddToOrderModal] = useState(false);
   const [additionalCart, setAdditionalCart] = useState({});
   const [isAddingToOrder, setIsAddingToOrder] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [additionalNotes, setAdditionalNotes] = useState("");
 
   // Ref untuk scroll ke kategori
   const categoryRefs = useRef({});
@@ -217,7 +219,8 @@ function OrderMenu() {
       return hasChanges ? updatedCart : prevCart;
     });
   }, [itemOptions, menuItems, getSelectedOption, cart]);
-    // ============ SINKRONISASI HARGA ADDITIONAL CART DENGAN OPSI ============
+  
+  // ============ SINKRONISASI HARGA ADDITIONAL CART DENGAN OPSI ============
   useEffect(() => {
     if (Object.keys(additionalCart).length === 0) return;
     
@@ -446,12 +449,24 @@ function OrderMenu() {
 
     try {
       if (activeOrder && activeOrder._id) {
-        await addItemsToOrder(activeOrder._id, { items, totalPrice });
+        await addItemsToOrder(activeOrder._id, {
+          items,
+          totalPrice,
+          notes: additionalNotes.trim(),
+        });
       } else {
-        await createOrder({ tableNumber, items, totalPrice, token });
+        await createOrder({
+          tableNumber,
+          items,
+          totalPrice,
+          notes: notes.trim(),
+          token,
+        });
       }
 
       setCart({});
+      setNotes("");
+      setAdditionalNotes("");
       const savedCartKey = `cart_${tableNumber}`;
       localStorage.removeItem(savedCartKey);
 
@@ -499,9 +514,14 @@ function OrderMenu() {
     setAnimationProgress(0);
 
     try {
-      await addItemsToOrder(activeOrder._id, { items: newItems, totalPrice: additionalTotalPrice });
+      await addItemsToOrder(activeOrder._id, {
+        items: newItems,
+        totalPrice: additionalTotalPrice,
+        notes: additionalNotes.trim(),
+      });
       
       setAdditionalCart({});
+      setAdditionalNotes("");
       setShowAddToOrderModal(false);
       
       const savedAdditionalCartKey = `additional_cart_${tableNumber}_${activeOrder._id}`;
@@ -936,6 +956,12 @@ function OrderMenu() {
                 </div>
               </div>
 
+              {activeOrder.notes ? (
+                <div style={styles.activeOrderNotes}>
+                  <strong>Catatan Pesanan:</strong> {activeOrder.notes}
+                </div>
+              ) : null}
+
               <div style={styles.progressWrapper}>
                 <div style={styles.progressSteps}>
                   {["pending", "cooking", "served"].map((stepStatus, idx) => {
@@ -994,9 +1020,9 @@ function OrderMenu() {
                   return (
                     <div key={idx} style={styles.orderItemRow}>
                       <div style={styles.orderItemInfo}>
-                        <span style={styles.orderItemQuantity}>{item.quantity || 0}x</span>
                         <span style={styles.orderItemName}>
                           {item.name || "Unknown"}
+                          <span style={styles.orderItemQuantity}> x{item.quantity || 0}</span>
                           {isDelivered && (
                             <span style={styles.deliveredBadge}>
                               <span style={styles.checkIcon}>✓</span> Sudah Diantar
@@ -1123,21 +1149,29 @@ function OrderMenu() {
 
       {!!Object.keys(cart).length && !activeOrder && (
         <div style={styles.cartBar}>
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ fontSize: "11px", color: "#888" }}>Total Pesanan</span>
-            <b style={styles.cartTotal}>Rp {totalPrice.toLocaleString()}</b>
+          <textarea
+            style={styles.cartNotes}
+            placeholder="Catatan tambahan (opsional)..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+            <div>
+              <span style={{ fontSize: "11px", color: "#888" }}>Total Pesanan</span>
+              <b style={styles.cartTotal}>Rp {totalPrice.toLocaleString()}</b>
+            </div>
+            <button
+              style={{
+                ...styles.orderButton,
+                backgroundColor: COLORS.orange,
+                opacity: isSubmitting ? 0.7 : 1,
+              }}
+              onClick={handleOrder}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? <div style={styles.buttonSpinner} /> : "PESAN SEKARANG"}
+            </button>
           </div>
-          <button
-            style={{
-              ...styles.orderButton,
-              backgroundColor: COLORS.orange,
-              opacity: isSubmitting ? 0.7 : 1,
-            }}
-            onClick={handleOrder}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? <div style={styles.buttonSpinner} /> : "PESAN SEKARANG"}
-          </button>
         </div>
       )}
 
@@ -1195,6 +1229,16 @@ function OrderMenu() {
               </div>
             </div>
             
+            <div style={{ padding: "14px 0" }}>
+              <label style={styles.label}>Catatan Tambahan (opsional)</label>
+              <textarea
+                style={styles.input}
+                placeholder="Tambahkan catatan khusus untuk pesanan tambahan..."
+                value={additionalNotes}
+                onChange={(e) => setAdditionalNotes(e.target.value)}
+                rows="3"
+              />
+            </div>
             <div style={styles.modalFooter}>
               <div style={styles.modalTotal}>
                 <span>Total Tambahan:</span>
@@ -1346,7 +1390,6 @@ const MenuItem = React.memo(function MenuItem({ item, qty, selectedOption, onOpt
 });
 
 const styles = {
-  // ... (styles tetap sama seperti sebelumnya)
   pageWrapper: {
     backgroundColor: COLORS.white,
     minHeight: "100vh",
@@ -1448,6 +1491,40 @@ const styles = {
     marginBottom: "6px",
     lineHeight: "1.4",
   },
+  menuPrice: { fontWeight: "800", color: COLORS.orange, fontSize: "15px" },
+  menuAction: { flexShrink: 0 },
+  addButton: {
+    padding: "7px 20px",
+    borderRadius: "15px",
+    border: "2px solid",
+    background: "transparent",
+    fontWeight: "bold",
+    cursor: "pointer",
+    fontSize: "13px",
+  },
+  qtyWrapper: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    background: "#f9f9f9",
+    padding: "5px",
+    borderRadius: "12px",
+    border: "1px solid #eee",
+  },
+  qtyBtnSmall: {
+    width: "30px",
+    height: "30px",
+    border: "none",
+    background: COLORS.orange,
+    color: "#fff",
+    borderRadius: "10px",
+    cursor: "pointer",
+    fontWeight: "bold",
+    fontSize: "18px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   optionSection: {
     marginTop: "10px",
   },
@@ -1486,58 +1563,6 @@ const styles = {
     color: "#333",
     backgroundColor: "#fff",
   },
-  menuPrice: { fontWeight: "800", color: COLORS.orange, fontSize: "15px" },
-  menuAction: { flexShrink: 0 },
-  addButton: {
-    padding: "7px 20px",
-    borderRadius: "15px",
-    border: "2px solid",
-    background: "transparent",
-    fontWeight: "bold",
-    cursor: "pointer",
-    fontSize: "13px",
-  },
-  qtyWrapper: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    background: "#f9f9f9",
-    padding: "5px",
-    borderRadius: "12px",
-    border: "1px solid #eee",
-  },
-  qtyBtnSmall: {
-    width: "30px",
-    height: "30px",
-    border: "none",
-    background: COLORS.orange,
-    color: "#fff",
-    borderRadius: "10px",
-    cursor: "pointer",
-    fontWeight: "bold",
-    fontSize: "18px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cartBar: {
-    position: "fixed",
-    bottom: 25,
-    left: "50%",
-    transform: "translateX(-50%)",
-    width: "92%",
-    maxWidth: "460px",
-    background: "#fff",
-    padding: "15px 25px",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderRadius: "22px",
-    boxShadow: "0 8px 30px rgba(0,0,0,0.2)",
-    zIndex: 100,
-    border: "1px solid #eee",
-  },
-  cartTotal: { fontSize: "18px", color: COLORS.orange, fontWeight: "800" },
   orderButton: {
     color: "#fff",
     border: "none",
@@ -1555,6 +1580,52 @@ const styles = {
     borderRadius: "50%",
     animation: "spin 0.8s linear infinite",
     margin: "0 auto",
+  },
+  cartBar: {
+    position: "fixed",
+    bottom: 25,
+    left: "50%",
+    transform: "translateX(-50%)",
+    width: "92%",
+    maxWidth: "460px",
+    background: "#fff",
+    padding: "15px 25px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+    borderRadius: "22px",
+    boxShadow: "0 8px 30px rgba(0,0,0,0.2)",
+    zIndex: 100,
+    border: "1px solid #eee",
+  },
+  cartTotal: { fontSize: "18px", color: COLORS.orange, fontWeight: "800" },
+  cartNotes: {
+    width: "100%",
+    padding: "10px",
+    borderRadius: "10px",
+    border: "1px solid #ddd",
+    fontSize: "12px",
+    resize: "vertical",
+    fontFamily: "inherit",
+    marginBottom: "8px",
+    boxSizing: "border-box",
+  },
+  label: {
+    fontSize: "13px",
+    fontWeight: "500",
+    color: COLORS.textDark,
+    marginBottom: "6px",
+    display: "block",
+  },
+  input: {
+    padding: "10px",
+    borderRadius: "10px",
+    border: "1px solid #ddd",
+    fontSize: "13px",
+    width: "100%",
+    boxSizing: "border-box",
+    resize: "vertical",
+    fontFamily: "inherit",
   },
   statusChip: {
     padding: "8px 20px",
@@ -1648,6 +1719,16 @@ const styles = {
     marginBottom: "24px",
   },
   statusTextContainer: { flex: 1 },
+  activeOrderNotes: {
+    marginBottom: "18px",
+    padding: "14px 16px",
+    borderRadius: "16px",
+    backgroundColor: "#FFFBEB",
+    color: "#92400E",
+    border: "1px solid #FDE68A",
+    fontSize: "14px",
+    lineHeight: "1.7",
+  },
   progressWrapper: { marginTop: "16px" },
   progressSteps: {
     display: "flex",
@@ -1821,7 +1902,6 @@ const styles = {
     borderRadius: "12px",
     fontSize: "13px",
   },
-  // ============ STYLE UNTUK FITUR PESAN LAGI ============
   addMoreButtonContainer: {
     marginTop: "20px",
     marginBottom: "20px",

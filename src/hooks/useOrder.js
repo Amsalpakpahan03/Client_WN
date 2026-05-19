@@ -76,7 +76,8 @@ export const useOrder = (tableNumber) => {
       const finalPayload = {
         tableNumber: finalTableNumber,
         items: items,
-        totalPrice: Number(payload.totalPrice || 0)
+        totalPrice: Number(payload.totalPrice || 0),
+        notes: payload.notes || ""  // ✅ TAMBAHKAN INI
       };
       
       console.log("[ORDER] ========== FINAL PAYLOAD ==========");
@@ -142,7 +143,8 @@ export const useOrder = (tableNumber) => {
 
       const finalPayload = {
         items,
-        totalPrice: Number(payload.totalPrice || 0)
+        totalPrice: Number(payload.totalPrice || 0),
+        notes: payload.notes || ""  // ✅ TAMBAHKAN INI
       };
 
       const res = await OrderAPI.addItems(orderId, finalPayload);
